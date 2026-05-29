@@ -1,7 +1,8 @@
-import { createRobot } from "./api";
+import { createRobot, listRobots, challenge } from "./api";
+import { createPlayer } from "./player";
 import { deriveStats, checkBuild } from "./buildStats";
 import { BALANCED, STARTER_CANNON } from "./data";
-import type { Build, Condition, ConditionOp, ConditionType, Ruleset } from "./types";
+import type { Build, Condition, ConditionOp, ConditionType, Robot, Ruleset } from "./types";
 
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -186,8 +187,50 @@ async function register(): Promise<void> {
   try {
     const robot = await createRobot(owner, name, build);
     msg.textContent = `登録成功: ${robot.name}（${robot.id}）`;
+    await refreshRoster(); // 登録した機体を名簿に反映
   } catch (e) {
     msg.textContent = `登録失敗: ${(e as Error).message}`;
+  }
+}
+
+// ---- 名簿・挑戦・観戦（F2 / F3） ----
+
+const player = createPlayer(el<HTMLCanvasElement>("arena"), el("status"));
+
+async function refreshRoster(): Promise<void> {
+  const roster = await listRobots();
+  const sel = el<HTMLSelectElement>("sel-challenger");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  for (const r of roster) sel.add(new Option(`${r.name}（${r.id} / ${r.owner}）`, r.id));
+  if (roster.some((r) => r.id === prev)) sel.value = prev;
+
+  const ul = el("roster");
+  ul.innerHTML = "";
+  if (roster.length === 0) {
+    ul.innerHTML = "<li>まだロボットがいません。上で登録してください。</li>";
+    return;
+  }
+  for (const r of roster) {
+    const li = document.createElement("li");
+    li.append(`${r.name}（${r.owner} / ${r.id}） `, makeButton("挑戦", () => void startChallenge(r)));
+    ul.appendChild(li);
+  }
+}
+
+async function startChallenge(opponent: Robot): Promise<void> {
+  const msg = el("challenge-msg");
+  msg.textContent = "";
+  const challengerId = el<HTMLSelectElement>("sel-challenger").value;
+  if (!challengerId) {
+    msg.textContent = "先に挑戦者（自分のロボット）を登録・選択してください。";
+    return;
+  }
+  try {
+    const battle = await challenge(challengerId, opponent.id);
+    player.play(battle.replay, battle.challenger.name, battle.opponent.name);
+  } catch (e) {
+    msg.textContent = `挑戦失敗: ${(e as Error).message}`;
   }
 }
 
@@ -195,6 +238,9 @@ async function register(): Promise<void> {
 
 el<HTMLInputElement>("eq-weapon").addEventListener("change", refreshConstraints);
 el("btn-register").addEventListener("click", () => void register());
+el("btn-refresh").addEventListener("click", () => void refreshRoster());
+el("btn-restart").addEventListener("click", () => player.restart());
 renderChannel("movement");
 renderChannel("weapon");
 refreshConstraints();
+void refreshRoster();

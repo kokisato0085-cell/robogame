@@ -41,7 +41,17 @@
 
     <h2>4. 登録</h2>
     <button id="btn-register">登録</button><span id="register-msg"></span>
-    <p class="note">名簿・挑戦・観戦・受信箱は次タスク（T4 / T5）で実装します。</p>
+
+    <h2>5. 名簿・相手選択</h2>
+    <button id="btn-refresh">一覧更新</button>
+    <label> あなたのロボット（挑戦者）: <select id="sel-challenger"></select></label>
+    <ul id="roster"></ul>
+    <p class="warn" id="challenge-msg"></p>
+
+    <h2>6. 観戦</h2>
+    <canvas id="arena" width="600" height="600" style="border:1px solid #ccc;background:#fafafa;display:block"></canvas>
+    <div><button id="btn-restart">再再生</button> <span id="status">挑戦すると戦闘が再生されます。</span></div>
+    <p class="note">受信箱は次タスク（T5）で実装します。</p>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
