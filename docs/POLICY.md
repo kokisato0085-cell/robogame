@@ -131,7 +131,16 @@ Ruleset は入れ子 JSON（チャネル→ルール→条件/行動）で表現
 
 **遷移**：ビルド作成(組立→アルゴリズム編集) → 登録(名簿入り) → 相手選択 → 挑戦 → 観戦／受信箱 → 観戦
 
-### 中7 永続化
+### 中7 永続化（確定）
+
+- **段階**：基礎は**インメモリ**（再起動で消える）で骨格検証 → 確立後に **MySQL** で永続化。
+- **MySQL スキーマ方針**：入れ子データ（Build・Ruleset・Replay）は **JSON カラム**で保存（過度に正規化しない）。
+  - `robots`（id, owner, name, build JSON, created_at）
+  - `battles`（id, challenger_robot_id, opponent_robot_id, winner, reason, replay JSON, created_at）
+  - **受信箱**は専用テーブルを作らず、`battles` を相手(opponent)の owner で絞るクエリで導出。
+- **Redis**：複数インスタンス化／同期モードのスケール時に導入（大8）。基礎では不要。
+
+### 中8 段階計画
 *（検討中）*
 
 ## 小方針
