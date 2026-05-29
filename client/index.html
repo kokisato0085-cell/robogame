@@ -51,7 +51,12 @@
     <h2>6. 観戦</h2>
     <canvas id="arena" width="600" height="600" style="border:1px solid #ccc;background:#fafafa;display:block"></canvas>
     <div><button id="btn-restart">再再生</button> <span id="status">挑戦すると戦闘が再生されます。</span></div>
-    <p class="note">受信箱は次タスク（T5）で実装します。</p>
+
+    <h2>7. 受信箱（自分のロボットが挑まれた結果）</h2>
+    <label>所有者 <input type="text" id="in-inbox-owner" value="you" /></label>
+    <button id="btn-inbox">受信箱を表示</button>
+    <ul id="inbox"></ul>
+    <p class="warn" id="inbox-msg"></p>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,8 +1,8 @@
-import { createRobot, listRobots, challenge } from "./api";
+import { createRobot, listRobots, challenge, inbox } from "./api";
 import { createPlayer } from "./player";
 import { deriveStats, checkBuild } from "./buildStats";
 import { BALANCED, STARTER_CANNON } from "./data";
-import type { Build, Condition, ConditionOp, ConditionType, Robot, Ruleset } from "./types";
+import type { Battle, Build, Condition, ConditionOp, ConditionType, Robot, Ruleset } from "./types";
 
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -187,6 +187,7 @@ async function register(): Promise<void> {
   try {
     const robot = await createRobot(owner, name, build);
     msg.textContent = `登録成功: ${robot.name}（${robot.id}）`;
+    el<HTMLInputElement>("in-inbox-owner").value = owner; // 受信箱の所有者欄も自分に合わせる
     await refreshRoster(); // 登録した機体を名簿に反映
   } catch (e) {
     msg.textContent = `登録失敗: ${(e as Error).message}`;
@@ -234,12 +235,50 @@ async function startChallenge(opponent: Robot): Promise<void> {
   }
 }
 
+// ---- 受信箱（F4） ----
+
+// 防衛側（受信箱の所有者）視点の勝敗。winner: 1=相手(防衛側)勝ち / 0=挑戦者勝ち / -1=引分。
+function defenderResult(b: Battle): string {
+  if (b.winner === -1) return "引き分け";
+  return b.winner === 1 ? "勝ち" : "負け";
+}
+
+async function showInbox(): Promise<void> {
+  const owner = el<HTMLInputElement>("in-inbox-owner").value.trim();
+  const list = el("inbox");
+  const msg = el("inbox-msg");
+  msg.textContent = "";
+  list.innerHTML = "";
+  if (!owner) {
+    msg.textContent = "所有者を入力してください。";
+    return;
+  }
+  try {
+    const battles = await inbox(owner);
+    if (battles.length === 0) {
+      list.innerHTML = "<li>まだ挑戦されていません。</li>";
+      return;
+    }
+    for (const b of battles) {
+      const li = document.createElement("li");
+      li.append(
+        `${b.challenger.name}（${b.challenger.owner}）からの挑戦 → ${defenderResult(b)} `,
+        makeButton("観戦", () => player.play(b.replay, b.challenger.name, b.opponent.name)),
+      );
+      list.appendChild(li);
+    }
+  } catch (e) {
+    msg.textContent = `受信箱の取得に失敗: ${(e as Error).message}`;
+  }
+}
+
 // ---- 初期化 ----
 
 el<HTMLInputElement>("eq-weapon").addEventListener("change", refreshConstraints);
 el("btn-register").addEventListener("click", () => void register());
 el("btn-refresh").addEventListener("click", () => void refreshRoster());
 el("btn-restart").addEventListener("click", () => player.restart());
+el("btn-inbox").addEventListener("click", () => void showInbox());
 renderChannel("movement");
 renderChannel("weapon");
 refreshConstraints();
