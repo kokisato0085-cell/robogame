@@ -22,8 +22,8 @@
 |--------|------|
 | T1 決定論シミュレーションのコア | ✅ |
 | T2 ビルド検証＋ストア＋REST API | ✅ |
-| T3 ビルド作成UI（組立＋ルールエディタ） | ⏳ |
-| T4 名簿・挑戦・Canvas観戦 | — |
+| T3 ビルド作成UI（組立＋ルールエディタ） | ✅ |
+| T4 名簿・挑戦・Canvas観戦 | ⏳ |
 | T5 受信箱 | — |
 
 ## 開発ログ（技術的障壁 → 解決策）
@@ -38,5 +38,10 @@
 - **解決**：ビルドの意味論を所有する **`sim.ValidateBuild`** に検証を集約し、API はその境界で呼ぶだけにした（関心の分離）。検証用の許可集合は `map` で持つが、**`Simulate` 内では使わない**ため決定論に影響しない。指名チャレンジ制（挑戦者 vs 相手 → 相手の受信箱へ記録）を REST で実装。
 - 関連：`server/sim/validate.go` / `server/store/store.go` / `server/api/api.go` / `server/main.go`
 
+### T3: ビルド作成UI（組立 ＋ ルールエディタ）＋ APIクライアント
+- **障壁**：ルールエディタの状態管理（チャネル別・優先順位・複数条件AND・編集途中の取り消し）と、フロント↔サーバーの型整合。
+- **解決**：**ロジック層（型・ビルド計算 `buildStats`）を UI から分離**し vitest で単体テスト（R7）。UI 状態は `ruleset` と「追加中条件 `pending`」の2つに集約して再描画。編集途中の誤操作救済として**追加中条件に個別の削除（✕）**を用意。Vite プロキシ＋usePolling で WSL 開発環境の差異を回避。
+- 関連：`client/src/{types,data,buildStats,api,main}.ts` / `buildStats.test.ts`
+
 ### 関心の分離（R6）
-sim パッケージを責務で分割：型定義（types）／実効ステータス算出（build）／ルール評価（behavior）／戦闘ループ・幾何（sim）／検証（validate）。サーバーは API・ストア・sim に層分け。
+sim パッケージを責務で分割：型定義（types）／実効ステータス算出（build）／ルール評価（behavior）／戦闘ループ・幾何（sim）／検証（validate）。サーバーは API・ストア・sim に層分け。フロントは型／カタログ／計算／API／UI に分離。
