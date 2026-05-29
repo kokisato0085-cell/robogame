@@ -102,7 +102,23 @@
 
 Ruleset は入れ子 JSON（チャネル→ルール→条件/行動）で表現する。
 
-### 中5 通信・API方式
+### 中5 通信・API方式（確定）
+
+**非同期（REST）＝主軸**
+- `POST /api/robots`：ビルド登録（{owner, Build}。制約検証して保存）
+- `GET /api/robots`：名簿一覧
+- `POST /api/challenge`：{challenger_id, opponent_id} → サーバーが sim → Battle（Replay 含む）を返却＋相手の inbox へ記録
+- `GET /api/inbox?owner=`：受信箱（防衛側の結果一覧）
+- `GET /api/battles/{id}`（任意）：対戦詳細・リプレイ取得
+
+**同期（WebSocket）＝拡張段階**
+- `WS /ws/...`：2 人が同じ戦闘をライブ同時観戦。サーバーが決定論 sim のフレームを配信、ルーム管理・再接続。基礎は REST のみで、これは後段。
+
+**型共有方針**：初期は JSON（Go と TS が共通スキーマ＝基本設計書で定義 に従う）→ 拡張で Protocol Buffers による型自動生成。
+
+**その他**：CORS は開発時プロキシで同一オリジン化・本番はオリジン限定。エラー応答は `{error: メッセージ}` ＋ 適切な HTTP ステータス。
+
+### 中6 画面構成・遷移
 *（検討中）*
 
 ## 小方針
