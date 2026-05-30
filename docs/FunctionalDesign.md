@@ -156,6 +156,48 @@ retreat は (tx,ty) を「敵の反対方向の点」に置き換えて同式を
 
 ---
 
+# 段階3 機能設計（パーツ・機体・UI刷新）
+
+参照：BasicDesign §9（2-A〜2-E）。武器バリエーションは後送り。
+
+## S3-0 カタログ（小方針・調整可）
+**素体3種**（2-D）：Balanced(hp100/w20/slot4/batt100/spd12)／Fortress(160/35/5/120/9)／Runner(70/12/3/90/16)。
+**パーツ**：
+- Starter Cannon（weapon）：power12 range250 cd8 heat18 projSpeed40／w8 power6 slot1
+- Light Plating（armor）：shield30／w6 slot1 power0
+- Heavy Plating（armor）：shield70／w16 slot2 power0
+- Booster（movement）：dashDistance120 dashCooldown30 dashPowerCost20／w5 slot1 power0
+- Guard Unit（defense）：w10 slot1 power15
+
+## S3-1 ダッシュ実装（sim）
+- `dashApproach`／`dashRetreat`：movementパーツ(Booster)を装備 ∧ `dashCd==0` のとき、1tickで **dashDistance**（ミリ）を敵方向／逆方向へ移動し `dashCd=dashCooldown`。未装備/CD中は通常移動にフォールバック。
+- derive に dash 用 `*MovementSpec` を保持。条件 `dashReady`（dashCd==0）が有効化。
+
+## S3-2 防御実装（sim）
+- 特殊チャネルを評価（デフォルト無し）。`defend` ∧ defenseパーツ(Guard Unit)装備 のとき、その tick を**防御状態**にする。
+- 防御中：被ダメージ **×1/2**（applyDamage で軽減）、移動量 **×1/4**（移動結果に乗算）、電力 powerCost を消費（案A では記録のみ）。
+- `RobotState.Defending bool` を追加（描画用）。
+
+## S3-3 オーバーヒート電力ペナルティ（定数のみ）
+- `OVERHEAT_POWER_PENALTY=30`（2-C）を定数として持つ。**効果は案B（段階4）で有効化**。段階3 では無効（案A）。
+
+## S3-4 検証（validate）
+- カテゴリ `"defense"` を有効化。Guard Unit はスペック無しでよい（presence で defend 可否を判定）。
+
+## S3-5 ビルダーUI 汎用化（フロント）
+- **素体セレクタ**（3種）。選ぶと制約・基礎値が変わる。
+- **パーツカタログ**から複数装着（チェック/追加・削除）。スロット/総重量/実効速度/電力/総シールドをリアルタイム表示し、超過は警告（案A=登録不可）。
+
+## S3-6 UIタブ化（フロント）
+- 3タブ：**ロボ作成**（識別＋組み立て＋アルゴリズム＋登録）／**対戦**（名簿→相手選択→観戦）／**受信箱**（一覧→観戦）。タブは表示/非表示切替。
+- 観戦Canvasは対戦・受信箱の各タブに配置、`player` を再利用。
+- **owner名を localStorage に記憶**し、ロボ作成・受信箱の所有者欄へ自動入力。
+
+## S3-7 行動パレット拡張（フロント）
+- 移動チャネルに `dashApproach`／`dashRetreat`、特殊チャネルに `defend` を追加。条件に `dashReady` を追加。
+
+---
+
 ## 検証状況
 - Pass 1（ソース突合）：実装着手後。
-- Pass 2/3：自己実施。§0 で BasicDesign §8 を全件解消、段階1で実装する/しない範囲を明示。段階2 機能設計（S2-*）で発射体・遮蔽物・マップの実装詳細を確定。
+- Pass 2/3：自己実施。§0 で BasicDesign §8 を全件解消、段階1で実装する/しない範囲を明示。段階2（S2-*）で発射体・遮蔽物・マップ、段階3（S3-*）でパーツ拡張・防御・UI刷新の実装詳細を確定。
