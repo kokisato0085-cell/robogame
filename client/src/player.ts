@@ -3,13 +3,20 @@ import type { Replay, Frame } from "./types";
 // Canvas でリプレイを再生する観戦プレイヤー（FunctionalDesign §4 / S2-5）。
 // 描画はリプレイの再生に徹し、ゲームロジックは持たない（sim と描画の分離）。
 
-const CANVAS = 600;
-const PAD = 20;
-const ROBOT_R = 9;
+const CANVAS = 760;
+const PAD = 24;
+const ROBOT_R = 11;
 const TICKS_PER_SEC = 30;
 const HEAT_MAX = 100;
 const FLOATER_LIFE = 0.6; // ダメージ数値の表示秒数
+const SPRITE_R = 24; // スプライトの半径（描画px）
 const COLORS = ["#2d7dd2", "#e8503a"] as const; // 0=青(挑戦者) / 1=赤(相手)
+
+// ロボのスプライト（正面／後ろ向き）。読み込み前は円でフォールバック。
+const frontImg = new Image();
+frontImg.src = "/robot-front.png";
+const backImg = new Image();
+backImg.src = "/robot-back.png";
 
 interface Floater {
   cx: number;
@@ -43,7 +50,7 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
   // ガードを「分割リング」で表現。残り current/max のセグメントを描き、欠けていく様子を見せる。
   function drawGuardRing(cx: number, cy: number, current: number, max: number, active: boolean): void {
     if (max <= 0 || current <= 0) return;
-    const r = ROBOT_R + 5;
+    const r = SPRITE_R + 4;
     const seg = (Math.PI * 2) / max;
     const gap = seg * 0.25;
     ctx.strokeStyle = "#19c2c2";
@@ -77,6 +84,7 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
 
     for (let i = 0; i < 2; i++) {
       const st = frame.robots[i];
+      const enemy = frame.robots[1 - i];
       const cx = pos(st.x, s);
       const cy = pos(st.y, s);
       const maxHp = replay.builds[i].chassis.baseHp;
@@ -84,26 +92,33 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
 
       if (st.hp <= 0) {
         ctx.strokeStyle = COLORS[i];
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(cx - ROBOT_R, cy - ROBOT_R);
-        ctx.lineTo(cx + ROBOT_R, cy + ROBOT_R);
-        ctx.moveTo(cx + ROBOT_R, cy - ROBOT_R);
-        ctx.lineTo(cx - ROBOT_R, cy + ROBOT_R);
+        ctx.moveTo(cx - SPRITE_R, cy - SPRITE_R);
+        ctx.lineTo(cx + SPRITE_R, cy + SPRITE_R);
+        ctx.moveTo(cx + SPRITE_R, cy - SPRITE_R);
+        ctx.lineTo(cx - SPRITE_R, cy + SPRITE_R);
         ctx.stroke();
+        ctx.lineWidth = 1;
       } else {
-        ctx.fillStyle = COLORS[i];
-        ctx.beginPath();
-        ctx.arc(cx, cy, ROBOT_R, 0, Math.PI * 2);
-        ctx.fill();
-        // ガード残量を分割リングで表示（防御中は太く明るい）。耐久が減ると欠ける。
+        // 敵が下にいれば正面、上にいれば後ろ向き。読み込み前は円でフォールバック。
+        const img = enemy.y > st.y ? frontImg : backImg;
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(img, cx - SPRITE_R, cy - SPRITE_R, SPRITE_R * 2, SPRITE_R * 2);
+        } else {
+          ctx.fillStyle = COLORS[i];
+          ctx.beginPath();
+          ctx.arc(cx, cy, ROBOT_R, 0, Math.PI * 2);
+          ctx.fill();
+        }
         drawGuardRing(cx, cy, st.guardCharges, replay.frames[0].robots[i].guardCharges, st.defending);
       }
 
-      const bw = 26;
+      const bw = 30;
       const bx = cx - bw / 2;
-      drawBar(bx, cy - ROBOT_R - 16, bw, st.hp / maxHp, COLORS[i]);
-      if (maxShield > 0) drawBar(bx, cy - ROBOT_R - 11, bw, st.shield / maxShield, "#3aa0e8");
-      drawBar(bx, cy - ROBOT_R - 6, bw, st.heat / HEAT_MAX, st.overheated ? "#d00" : "#e8a13a");
+      drawBar(bx, cy - SPRITE_R - 16, bw, st.hp / maxHp, COLORS[i]);
+      if (maxShield > 0) drawBar(bx, cy - SPRITE_R - 11, bw, st.shield / maxShield, "#3aa0e8");
+      drawBar(bx, cy - SPRITE_R - 6, bw, st.heat / HEAT_MAX, st.overheated ? "#d00" : "#e8a13a");
     }
   }
 
