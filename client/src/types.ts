@@ -17,6 +17,8 @@ export interface WeaponSpec {
   cooldown: number;
   heatPerShot: number;
   projectileSpeed: number;
+  pellets: number;
+  spreadDeg: number;
   pattern: string;
 }
 
@@ -54,7 +56,8 @@ export type ConditionType =
   | "selfShield"
   | "selfHeat"
   | "selfBattery"
-  | "dashReady";
+  | "dashReady"
+  | "lineOfSight";
 
 export type ConditionOp =
   | "inRange"
@@ -63,7 +66,9 @@ export type ConditionOp =
   | "gt"
   | "nearOverheat"
   | "exists"
-  | "none";
+  | "none"
+  | "clear"
+  | "blocked";
 
 export interface Condition {
   type: ConditionType;

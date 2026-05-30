@@ -1,15 +1,26 @@
-import type { Replay, Frame } from "./types";
+import type { Replay, Frame, Build } from "./types";
+
+// 弾の見た目を武器ごとに変える（色・サイズ）。
+const PROJECTILE_STYLE: Record<string, { color: string; size: number }> = {
+  "Starter Cannon": { color: "#e8a13a", size: 5 },
+  "Rapid SMG": { color: "#f2d24b", size: 2 },
+  "Rail Sniper": { color: "#e8503a", size: 3 },
+  Laser: { color: "#19c2c2", size: 2 },
+  Scatter: { color: "#b070ff", size: 2 },
+};
+function weaponNameOf(build: Build): string {
+  return build.parts.find((p) => p.category === "weapon")?.name ?? "";
+}
 
 // Canvas でリプレイを再生する観戦プレイヤー（FunctionalDesign §4 / S2-5）。
 // 描画はリプレイの再生に徹し、ゲームロジックは持たない（sim と描画の分離）。
 
 const CANVAS = 760;
 const PAD = 24;
-const ROBOT_R = 11;
 const TICKS_PER_SEC = 30;
 const HEAT_MAX = 100;
 const FLOATER_LIFE = 0.6; // ダメージ数値の表示秒数
-const SPRITE_R = 24; // スプライトの半径（描画px）
+const SPRITE_HALF_MILLI = 55000; // = sim MinSep/2。画像範囲＝当たり(分離)半径。スプライトはマップ縮尺に連動
 const COLORS = ["#2d7dd2", "#e8503a"] as const; // 0=青(挑戦者) / 1=赤(相手)
 
 // ロボのスプライト（正面／後ろ向き）。読み込み前は円でフォールバック。
@@ -48,9 +59,9 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
   }
 
   // ガードを「分割リング」で表現。残り current/max のセグメントを描き、欠けていく様子を見せる。
-  function drawGuardRing(cx: number, cy: number, current: number, max: number, active: boolean): void {
+  function drawGuardRing(cx: number, cy: number, current: number, max: number, active: boolean, baseR: number): void {
     if (max <= 0 || current <= 0) return;
-    const r = SPRITE_R + 4;
+    const r = baseR + 4;
     const seg = (Math.PI * 2) / max;
     const gap = seg * 0.25;
     ctx.strokeStyle = "#19c2c2";
@@ -76,9 +87,10 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
     for (const o of replay.obstacles) ctx.fillRect(pos(o.x, s), pos(o.y, s), o.w * s, o.h * s);
 
     for (const p of frame.projectiles ?? []) {
-      ctx.fillStyle = COLORS[p.source];
+      const style = PROJECTILE_STYLE[weaponNameOf(replay.builds[p.source])];
+      ctx.fillStyle = style ? style.color : COLORS[p.source];
       ctx.beginPath();
-      ctx.arc(pos(p.x, s), pos(p.y, s), 3, 0, Math.PI * 2);
+      ctx.arc(pos(p.x, s), pos(p.y, s), style ? style.size : 3, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -87,6 +99,7 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
       const enemy = frame.robots[1 - i];
       const cx = pos(st.x, s);
       const cy = pos(st.y, s);
+      const rpx = SPRITE_HALF_MILLI * s; // 画像半径(px)＝当たり半径に連動
       const maxHp = replay.builds[i].chassis.baseHp;
       const maxShield = replay.frames[0].robots[i].shield;
 
@@ -94,31 +107,31 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
         ctx.strokeStyle = COLORS[i];
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(cx - SPRITE_R, cy - SPRITE_R);
-        ctx.lineTo(cx + SPRITE_R, cy + SPRITE_R);
-        ctx.moveTo(cx + SPRITE_R, cy - SPRITE_R);
-        ctx.lineTo(cx - SPRITE_R, cy + SPRITE_R);
+        ctx.moveTo(cx - rpx, cy - rpx);
+        ctx.lineTo(cx + rpx, cy + rpx);
+        ctx.moveTo(cx + rpx, cy - rpx);
+        ctx.lineTo(cx - rpx, cy + rpx);
         ctx.stroke();
         ctx.lineWidth = 1;
       } else {
         // 敵が下にいれば正面、上にいれば後ろ向き。読み込み前は円でフォールバック。
         const img = enemy.y > st.y ? frontImg : backImg;
         if (img.complete && img.naturalWidth > 0) {
-          ctx.drawImage(img, cx - SPRITE_R, cy - SPRITE_R, SPRITE_R * 2, SPRITE_R * 2);
+          ctx.drawImage(img, cx - rpx, cy - rpx, rpx * 2, rpx * 2);
         } else {
           ctx.fillStyle = COLORS[i];
           ctx.beginPath();
-          ctx.arc(cx, cy, ROBOT_R, 0, Math.PI * 2);
+          ctx.arc(cx, cy, rpx, 0, Math.PI * 2);
           ctx.fill();
         }
-        drawGuardRing(cx, cy, st.guardCharges, replay.frames[0].robots[i].guardCharges, st.defending);
+        drawGuardRing(cx, cy, st.guardCharges, replay.frames[0].robots[i].guardCharges, st.defending, rpx);
       }
 
       const bw = 30;
       const bx = cx - bw / 2;
-      drawBar(bx, cy - SPRITE_R - 16, bw, st.hp / maxHp, COLORS[i]);
-      if (maxShield > 0) drawBar(bx, cy - SPRITE_R - 11, bw, st.shield / maxShield, "#3aa0e8");
-      drawBar(bx, cy - SPRITE_R - 6, bw, st.heat / HEAT_MAX, st.overheated ? "#d00" : "#e8a13a");
+      drawBar(bx, cy - rpx - 16, bw, st.hp / maxHp, COLORS[i]);
+      if (maxShield > 0) drawBar(bx, cy - rpx - 11, bw, st.shield / maxShield, "#3aa0e8");
+      drawBar(bx, cy - rpx - 6, bw, st.heat / HEAT_MAX, st.overheated ? "#d00" : "#e8a13a");
     }
   }
 
@@ -154,11 +167,13 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
       // 新しく通過したフレームの attack イベントからダメージ数値を生成。
       for (let fi = processed + 1; fi <= idx; fi++) {
         const frame = replay.frames[fi];
-        for (const ev of frame.events ?? []) {
-          if (ev.type !== "attack" || ev.amount <= 0) continue;
+        const atks = (frame.events ?? []).filter((e) => e.type === "attack" && e.amount > 0);
+        // 同時ヒット（拡散など）は横に並べて個別に表示する。
+        atks.forEach((ev, k) => {
           const t = frame.robots[ev.target];
-          floaters.push({ cx: pos(t.x, s), cy: pos(t.y, s), amount: ev.amount, guarded: ev.guarded, born: now });
-        }
+          const off = (k - (atks.length - 1) / 2) * 14;
+          floaters.push({ cx: pos(t.x, s) + off, cy: pos(t.y, s), amount: ev.amount, guarded: ev.guarded, born: now });
+        });
       }
       processed = idx;
       while (floaters.length && (now - floaters[0].born) / 1000 > FLOATER_LIFE) floaters.shift();

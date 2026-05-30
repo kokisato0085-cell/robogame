@@ -16,7 +16,7 @@ const ACTIONS: Record<Channel, string[]> = {
   special: ["defend"],
 };
 const CONDITION_TYPES: ConditionType[] = [
-  "enemyDistance", "selfHp", "selfShield", "selfHeat", "selfBattery", "dashReady",
+  "enemyDistance", "selfHp", "selfShield", "selfHeat", "selfBattery", "dashReady", "lineOfSight",
 ];
 const CONDITION_OPS: Record<ConditionType, ConditionOp[]> = {
   enemyDistance: ["inRange", "outRange", "lt", "gt"],
@@ -24,7 +24,8 @@ const CONDITION_OPS: Record<ConditionType, ConditionOp[]> = {
   selfShield: ["exists", "none"],
   selfHeat: ["lt", "gt", "nearOverheat"],
   selfBattery: ["lt", "gt"],
-  dashReady: ["exists"], // 段階1ではUI非表示
+  dashReady: ["exists"],
+  lineOfSight: ["clear", "blocked"],
 };
 const opNeedsValue = (op: ConditionOp): boolean => op === "lt" || op === "gt";
 

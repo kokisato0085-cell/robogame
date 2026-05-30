@@ -155,11 +155,11 @@ const (
 	ArenaH        = 1600 * PositionScale
 	MaxTicks      = 1800 // 30tick/秒 × 60秒
 
-	SpeedMin         = 3                  // 最低移動速度（表示units/tick）
-	WeightSpeedCoeff = 200                // 0.2 × PositionScale（超過重量1あたりの速度低下・ミリ）
-	WeightBattDiv    = 10                 // 利用可能電力 = capacity − excessWeight/WeightBattDiv
-	MinSep           = 40 * PositionScale // 最小間隔（重なり防止）
-	HitRadius        = 18 * PositionScale // 発射体の命中半径
+	SpeedMin         = 3                   // 最低移動速度（表示units/tick）
+	WeightSpeedCoeff = 200                 // 0.2 × PositionScale（超過重量1あたりの速度低下・ミリ）
+	WeightBattDiv    = 10                  // 利用可能電力 = capacity − excessWeight/WeightBattDiv
+	MinSep           = 110 * PositionScale // 最小間隔（重なり防止）＝機体の画像範囲に相当
+	HitRadius        = 18 * PositionScale  // 発射体の命中半径
 
 	HeatDecay            = 2   // 毎ティックの自然冷却
 	OverheatThreshold    = 100 // この熱でオーバーヒート

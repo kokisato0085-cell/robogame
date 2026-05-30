@@ -125,7 +125,7 @@ func minRobotDistance(r Replay) int {
 // 指令なし（デフォルト接近）の2体が中央レーンを通って互いに接近できる（膠着しない）。
 func TestDefaultApproachReachesEnemy(t *testing.T) {
 	r := Simulate(unarmed(), unarmed())
-	if md := minRobotDistance(r); md > 60*PositionScale {
+	if md := minRobotDistance(r); md > MinSep+10*PositionScale {
 		t.Errorf("接近できていない（膠着の疑い）: 最小距離=%d", md)
 	}
 }
