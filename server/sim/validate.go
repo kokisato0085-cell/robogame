@@ -65,7 +65,7 @@ func validatePartSpec(p Part) error {
 		if w == nil {
 			return fmt.Errorf("武器パーツに weapon 仕様がありません")
 		}
-		if w.Power < 0 || w.Range <= 0 || w.Cooldown <= 0 || w.HeatPerShot < 0 {
+		if w.Power < 0 || w.Range <= 0 || w.Cooldown <= 0 || w.HeatPerShot < 0 || w.ProjectileSpeed <= 0 {
 			return fmt.Errorf("武器パラメータが不正です")
 		}
 	case "armor":

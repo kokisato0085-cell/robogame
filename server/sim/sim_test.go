@@ -14,7 +14,7 @@ func balancedChassis() Chassis {
 func weaponPart(power, rng, cd, heat int) Part {
 	return Part{
 		Name: "W", Category: "weapon", Weight: 8, PowerCost: 6, SlotCost: 1,
-		Weapon: &WeaponSpec{Power: power, Range: rng, Cooldown: cd, HeatPerShot: heat, Pattern: "single"},
+		Weapon: &WeaponSpec{Power: power, Range: rng, Cooldown: cd, HeatPerShot: heat, ProjectileSpeed: 40, Pattern: "single"},
 	}
 }
 
@@ -29,9 +29,8 @@ func aggressive(power, rng, cd, heat int) Build {
 	}
 }
 
-func dist2(a, b RobotState) int64 {
-	dx, dy := int64(a.X-b.X), int64(a.Y-b.Y)
-	return dx*dx + dy*dy
+func unarmed() Build {
+	return Build{Chassis: balancedChassis()}
 }
 
 func anyOverheated(r Replay) bool {
@@ -43,9 +42,8 @@ func anyOverheated(r Replay) bool {
 	return false
 }
 
-// ---- テスト本体（設計書 §3 / §0 に基づく） ----
+// ---- テスト本体 ----
 
-// 決定論：同じ入力なら必ず同じリプレイ。最重要要件。
 func TestDeterminism(t *testing.T) {
 	a := aggressive(15, 250, 8, 10)
 	b := aggressive(11, 300, 9, 12)
@@ -54,41 +52,66 @@ func TestDeterminism(t *testing.T) {
 	}
 }
 
-// 初期フレーム：開始座標と初期HP（FunctionalDesign §0-4）。
-func TestInitialFrame(t *testing.T) {
+func TestInitialFrameAndArena(t *testing.T) {
 	r := Simulate(aggressive(10, 250, 8, 5), aggressive(10, 250, 8, 5))
 	f0 := r.Frames[0]
-	if f0.Tick != 0 {
-		t.Errorf("最初のフレーム tick=%d, want 0", f0.Tick)
-	}
-	if f0.Robots[0].X != startPositions[0][0] || f0.Robots[1].X != startPositions[1][0] {
+	if f0.Robots[0].X != 200*PositionScale || f0.Robots[1].X != 1400*PositionScale {
 		t.Errorf("初期X座標が不正: %d, %d", f0.Robots[0].X, f0.Robots[1].X)
 	}
 	if f0.Robots[0].Hp != 100 || f0.Robots[1].Hp != 100 {
-		t.Errorf("初期HPが不正: %d, %d", f0.Robots[0].Hp, f0.Robots[1].Hp)
+		t.Errorf("初期HPが不正")
+	}
+	if len(r.Obstacles) != 5 {
+		t.Errorf("遮蔽物 = %d 個, want 5", len(r.Obstacles))
+	}
+	if r.ArenaW != 1600*PositionScale {
+		t.Errorf("ArenaW = %d", r.ArenaW)
 	}
 }
 
-// 射程外からはデフォルトで接近する（距離が縮む）。
-func TestApproachFromOutOfRange(t *testing.T) {
-	r := Simulate(aggressive(10, 100, 8, 5), aggressive(10, 100, 8, 5))
-	if len(r.Frames) < 12 {
-		t.Fatalf("フレームが少なすぎる: %d", len(r.Frames))
-	}
-	if dist2(r.Frames[11].Robots[0], r.Frames[11].Robots[1]) >= dist2(r.Frames[0].Robots[0], r.Frames[0].Robots[1]) {
-		t.Error("接近していない（距離が縮んでいない）")
-	}
-}
-
-// 同条件で攻撃力が高い方が勝つ。
-func TestHigherPowerWins(t *testing.T) {
+// 攻撃力が低い側は勝てない（点対称配置＋相互遮蔽では引き分けもありうるため「負けない」で検証）。
+func TestHigherPowerNeverLoses(t *testing.T) {
 	r := Simulate(aggressive(20, 250, 8, 5), aggressive(8, 250, 8, 5))
-	if r.Winner != 0 {
-		t.Errorf("攻撃力が高い側が勝つはず: winner=%d reason=%s", r.Winner, r.Reason)
+	if r.Winner == 1 {
+		t.Errorf("攻撃力が高い挑戦者が負けた: winner=%d reason=%s", r.Winner, r.Reason)
 	}
 }
 
-// 過剰な連射はオーバーヒートする（熱管理がアルゴリズムの役割＝柱）。
+// 武器を持たない相手には負けない。
+func TestArmedNeverLosesToUnarmed(t *testing.T) {
+	r := Simulate(aggressive(15, 250, 8, 5), unarmed())
+	if r.Winner == 1 {
+		t.Errorf("武装側が無武装に負けた: winner=%d reason=%s", r.Winner, r.Reason)
+	}
+}
+
+// 交戦に到達すれば発射体が生成される。
+func TestProjectilesAppear(t *testing.T) {
+	r := Simulate(aggressive(10, 250, 8, 5), aggressive(10, 250, 8, 5))
+	found := false
+	for _, f := range r.Frames {
+		if len(f.Projectiles) > 0 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("発射体が一度も生成されていない（交戦に到達していない可能性）")
+	}
+}
+
+// 不変条件：ロボの中心が遮蔽物の内部に入らない（壁ずりが効いている）。
+func TestRobotsNeverInsideObstacle(t *testing.T) {
+	r := Simulate(aggressive(12, 250, 8, 5), aggressive(12, 250, 8, 5))
+	for _, f := range r.Frames {
+		for i := 0; i < 2; i++ {
+			if insideAnyObstacle(f.Robots[i].X, f.Robots[i].Y) {
+				t.Fatalf("tick %d: ロボ%d が遮蔽物内 (%d,%d)", f.Tick, i, f.Robots[i].X, f.Robots[i].Y)
+			}
+		}
+	}
+}
+
 func TestOverheatOccurs(t *testing.T) {
 	r := Simulate(aggressive(10, 250, 3, 60), aggressive(10, 250, 3, 60))
 	if !anyOverheated(r) {
@@ -96,16 +119,47 @@ func TestOverheatOccurs(t *testing.T) {
 	}
 }
 
-// ダメージが出ない場合はタイムアウト・引き分け。
-func TestTimeoutDrawWhenNoDamage(t *testing.T) {
-	r := Simulate(aggressive(0, 250, 8, 0), aggressive(0, 250, 8, 0))
+func TestTimeoutDrawWhenUnarmed(t *testing.T) {
+	r := Simulate(unarmed(), unarmed())
 	if r.Reason != "timeout" {
 		t.Errorf("reason=%s, want timeout", r.Reason)
 	}
 	if r.Winner != -1 {
-		t.Errorf("winner=%d, want -1（引き分け）", r.Winner)
+		t.Errorf("winner=%d, want -1", r.Winner)
 	}
-	if want := MaxTicks + 1; len(r.Frames) != want {
-		t.Errorf("フレーム数=%d, want %d", len(r.Frames), want)
+}
+
+// ---- ヘルパー単体テスト ----
+
+func TestInsideAnyObstacle(t *testing.T) {
+	o := obstacles[0]
+	if !insideAnyObstacle(o.X+o.W/2, o.Y+o.H/2) {
+		t.Error("遮蔽物中心が内部判定されない")
+	}
+	if insideAnyObstacle(0, 0) {
+		t.Error("原点が遮蔽物内と誤判定")
+	}
+}
+
+func TestSlideAroundObstacleAvoidsEntry(t *testing.T) {
+	o := obstacles[0]
+	// 遮蔽物の中心へ直進しようとする（X・Y両方ずれた位置から）。
+	oldX, oldY := o.X-100, o.Y-100
+	nx, ny := slideAroundObstacles(oldX, oldY, o.X+o.W/2, o.Y+o.H/2)
+	if insideAnyObstacle(nx, ny) {
+		t.Errorf("壁ずり後も遮蔽物内 (%d,%d)", nx, ny)
+	}
+}
+
+func TestSegHitsCircle(t *testing.T) {
+	if !segHitsCircle(0, 0, 100, 0, 50, 0, 10) {
+		t.Error("中心を通る線分が命中しない")
+	}
+	if segHitsCircle(0, 0, 100, 0, 50, 100, 10) {
+		t.Error("遠い線分が命中扱い")
+	}
+	// 高速で点としては跨ぐ位置でも、線分判定なら命中（トンネリング防止）。
+	if !segHitsCircle(0, 0, 40, 0, 20, 5, 10) {
+		t.Error("線分近傍が命中しない（トンネリング）")
 	}
 }

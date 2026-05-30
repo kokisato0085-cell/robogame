@@ -11,7 +11,7 @@ func testBuild() sim.Build {
 		Chassis: sim.Chassis{Name: "Balanced", BaseHp: 100, Weight: 20, Slots: 4, BatteryCapacity: 100, BaseSpeed: 12},
 		Parts: []sim.Part{{
 			Name: "W", Category: "weapon", Weight: 8, PowerCost: 6, SlotCost: 1,
-			Weapon: &sim.WeaponSpec{Power: 12, Range: 250, Cooldown: 8, HeatPerShot: 10, Pattern: "single"},
+			Weapon: &sim.WeaponSpec{Power: 12, Range: 250, Cooldown: 8, HeatPerShot: 10, ProjectileSpeed: 40, Pattern: "single"},
 		}},
 	}
 }

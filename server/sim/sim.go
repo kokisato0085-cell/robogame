@@ -2,8 +2,17 @@ package sim
 
 import "math/bits"
 
+// liveProjectile は飛行中の発射体（シミュレーション内部状態）。
+type liveProjectile struct {
+	x, y, vx, vy int // ミリ
+	source       int
+	damage       int
+	traveled     int // 飛距離（ミリ）
+	rng          int // 飛距離上限（ミリ）
+}
+
 // Simulate は a（挑戦者）と b（相手）の戦闘を最後まで計算し、リプレイを返す。
-// 同じ (a, b) なら必ず同じ Replay を返す（決定論）。処理順は BasicDesign §3.2 に従う。
+// 同じ (a, b) なら必ず同じ Replay を返す（決定論）。処理順は FunctionalDesign S2-2。
 func Simulate(a, b Build) Replay {
 	builds := [2]Build{a, b}
 	der := [2]derived{derive(a), derive(b)}
@@ -18,9 +27,10 @@ func Simulate(a, b Build) Replay {
 	}
 
 	frames := make([]Frame, 0, 128)
-	frames = append(frames, Frame{Tick: 0, Robots: st}) // 初期スナップショット
+	frames = append(frames, Frame{Tick: 0, Robots: st})
 
 	var weaponCd [2]int
+	var projs []liveProjectile
 	winner, reason := -1, "timeout"
 
 	for tick := 1; tick <= MaxTicks; tick++ {
@@ -38,7 +48,7 @@ func Simulate(a, b Build) Replay {
 			}
 		}
 
-		// 2) 減衰後の状態をスナップショットし、両者の行動を決定（同時解決）。
+		// 2) スナップショットから両者の行動を決定（同時解決）。
 		snap := st
 		dsq := dist2Of(snap[0], snap[1])
 		var moveAct, weapAct [2]string
@@ -48,48 +58,31 @@ func Simulate(a, b Build) Replay {
 			weapAct[i] = chooseAction(builds[i].Ruleset.Weapon, ctx, "hold")
 		}
 
-		// 3) 移動先を算出（スナップショットから）。
-		var newPos [2][2]int
+		// 3) 移動（壁ずりで遮蔽物を回り込む）＋重なり防止。
 		for i := 0; i < 2; i++ {
 			step := der[i].effSpeed
 			if snap[i].Overheated {
-				step /= 2 // オーバーヒート時の速度ペナルティ
+				step /= 2
 			}
 			nx, ny := resolveMovement(moveAct[i], snap[i], snap[1-i], der[i], step)
-			newPos[i][0], newPos[i][1] = clampArena(nx, ny)
+			nx, ny = clampArena(nx, ny)
+			st[i].X, st[i].Y = slideAroundObstacles(snap[i].X, snap[i].Y, nx, ny)
 		}
+		separate(&st)
 
-		// 4) 攻撃判定（スナップショットから・同時）。
-		var dmg [2]int
-		var fired [2]bool
 		var events []Event
+
+		// 4) 発射（発射体を生成。即時ダメージは無い）。
 		for i := 0; i < 2; i++ {
 			w := der[i].weapon
 			if weapAct[i] != "fire" || w == nil || weaponCd[i] != 0 || snap[i].Overheated {
 				continue
 			}
-			r := int64(der[i].weaponRangeMilli)
-			if dsq > r*r {
-				continue
+			p, ok := spawnProjectile(snap[i], snap[1-i], w, i)
+			if !ok {
+				continue // 敵と重なっていて方向が定まらない場合は不発
 			}
-			opp := 1 - i
-			dmg[opp] += w.Power
-			fired[i] = true
-			events = append(events, Event{Type: "attack", Source: i, Target: opp, Amount: w.Power})
-		}
-
-		// 5) 移動を適用し、重なりを防ぐ。
-		for i := 0; i < 2; i++ {
-			st[i].X, st[i].Y = newPos[i][0], newPos[i][1]
-		}
-		separate(&st)
-
-		// 6) 攻撃の副作用（熱・クールダウン・オーバーヒート）。
-		for i := 0; i < 2; i++ {
-			if !fired[i] {
-				continue
-			}
-			w := der[i].weapon
+			projs = append(projs, p)
 			weaponCd[i] = w.Cooldown
 			st[i].Heat += w.HeatPerShot
 			if st[i].Heat >= OverheatThreshold && !st[i].Overheated {
@@ -98,17 +91,10 @@ func Simulate(a, b Build) Replay {
 			}
 		}
 
-		// 7) ダメージ適用（シールド→HP）。
-		for i := 0; i < 2; i++ {
-			applyDamage(&st[i], dmg[i])
-		}
+		// 5) 発射体の移動と判定（命中・遮蔽物・射程切れ）。
+		projs = advanceProjectiles(projs, &st, &events)
 
-		// 8) 電力（段階1は利用可能電力を表示用に保持）。
-		for i := 0; i < 2; i++ {
-			st[i].Battery = der[i].availPower
-		}
-
-		// 9) 破壊イベント＋フレーム記録。
+		// 6) 破壊イベント＋フレーム記録。
 		dead0, dead1 := st[0].Hp <= 0, st[1].Hp <= 0
 		if dead0 {
 			events = append(events, Event{Type: "destroyed", Source: 0, Target: 0})
@@ -116,9 +102,9 @@ func Simulate(a, b Build) Replay {
 		if dead1 {
 			events = append(events, Event{Type: "destroyed", Source: 1, Target: 1})
 		}
-		frames = append(frames, Frame{Tick: tick, Robots: st, Events: events})
+		frames = append(frames, Frame{Tick: tick, Robots: st, Projectiles: snapshotProjectiles(projs), Events: events})
 
-		// 10) 決着判定。
+		// 7) 決着判定。
 		if dead0 || dead1 {
 			reason = "ko"
 			switch {
@@ -136,10 +122,115 @@ func Simulate(a, b Build) Replay {
 	if reason == "timeout" {
 		winner = decideTimeout(st[0], st[1])
 	}
-	return Replay{Builds: builds, Frames: frames, Winner: winner, Reason: reason}
+	return Replay{
+		Builds: builds, Frames: frames,
+		Obstacles: obstacles, ArenaW: ArenaW, ArenaH: ArenaH,
+		Winner: winner, Reason: reason,
+	}
 }
 
-// resolveMovement は行動に応じた移動後座標を返す。
+// ---- 発射体 ----
+
+// spawnProjectile は発射時の敵位置へ向かう発射体を作る。敵と重なっていれば ok=false。
+func spawnProjectile(self, enemy RobotState, w *WeaponSpec, source int) (liveProjectile, bool) {
+	dx, dy := enemy.X-self.X, enemy.Y-self.Y
+	dist := int(isqrt(int64(dx)*int64(dx) + int64(dy)*int64(dy)))
+	if dist == 0 {
+		return liveProjectile{}, false
+	}
+	spd := w.ProjectileSpeed * PositionScale
+	return liveProjectile{
+		x: self.X, y: self.Y,
+		vx: dx * spd / dist, vy: dy * spd / dist,
+		source: source, damage: w.Power,
+		rng: w.Range * PositionScale,
+	}, true
+}
+
+// advanceProjectiles は全発射体を1tick進め、命中/遮蔽/射程切れを処理し、生存分を返す。
+func advanceProjectiles(projs []liveProjectile, st *[2]RobotState, events *[]Event) []liveProjectile {
+	kept := make([]liveProjectile, 0, len(projs))
+	for _, p := range projs {
+		ox, oy := p.x, p.y
+		p.x += p.vx
+		p.y += p.vy
+		p.traveled += int(isqrt(int64(p.vx)*int64(p.vx) + int64(p.vy)*int64(p.vy)))
+
+		if p.traveled >= p.rng || insideAnyObstacle(p.x, p.y) {
+			continue // 射程切れ or 遮蔽物で消滅
+		}
+		// 移動線分と敵円のスイープ判定（高速弾のすり抜けを防ぐ）。
+		target := 1 - p.source
+		if segHitsCircle(ox, oy, p.x, p.y, st[target].X, st[target].Y, HitRadius) {
+			applyDamage(&st[target], p.damage)
+			*events = append(*events, Event{Type: "attack", Source: p.source, Target: target, Amount: p.damage})
+			continue // 命中で消滅
+		}
+		kept = append(kept, p)
+	}
+	return kept
+}
+
+// segHitsCircle は線分 (ax,ay)-(bx,by) が中心 (cx,cy)・半径 r の円に交差するか（整数）。
+// 円の中心から線分への最近点距離が r 以下かで判定する。
+func segHitsCircle(ax, ay, bx, by, cx, cy, r int) bool {
+	abx, aby := int64(bx-ax), int64(by-ay)
+	ab2 := abx*abx + aby*aby
+	var qx, qy int64
+	if ab2 == 0 {
+		qx, qy = int64(ax), int64(ay)
+	} else {
+		t := int64(cx-ax)*abx + int64(cy-ay)*aby // AC・AB
+		if t < 0 {
+			t = 0
+		} else if t > ab2 {
+			t = ab2
+		}
+		qx = int64(ax) + abx*t/ab2
+		qy = int64(ay) + aby*t/ab2
+	}
+	dx, dy := int64(cx)-qx, int64(cy)-qy
+	return dx*dx+dy*dy <= int64(r)*int64(r)
+}
+
+func snapshotProjectiles(projs []liveProjectile) []Projectile {
+	if len(projs) == 0 {
+		return nil
+	}
+	out := make([]Projectile, len(projs))
+	for i, p := range projs {
+		out[i] = Projectile{X: p.x, Y: p.y, Source: p.source}
+	}
+	return out
+}
+
+// ---- 遮蔽物 ----
+
+func insideAnyObstacle(x, y int) bool {
+	for _, o := range obstacles {
+		if x >= o.X && x <= o.X+o.W && y >= o.Y && y <= o.Y+o.H {
+			return true
+		}
+	}
+	return false
+}
+
+// slideAroundObstacles は壁ずり（FunctionalDesign S2-3）。直進が塞がれたら軸別に通れる方へ。
+func slideAroundObstacles(oldX, oldY, nx, ny int) (int, int) {
+	switch {
+	case !insideAnyObstacle(nx, ny):
+		return nx, ny
+	case !insideAnyObstacle(nx, oldY):
+		return nx, oldY
+	case !insideAnyObstacle(oldX, ny):
+		return oldX, ny
+	default:
+		return oldX, oldY
+	}
+}
+
+// ---- 移動 ----
+
 func resolveMovement(action string, self, enemy RobotState, d derived, step int) (int, int) {
 	switch action {
 	case "retreat", "dashRetreat":
@@ -153,7 +244,6 @@ func resolveMovement(action string, self, enemy RobotState, d derived, step int)
 	}
 }
 
-// resolveKeepDistance は自武器射程の 80〜100% を保つ（FunctionalDesign §0-5）。
 func resolveKeepDistance(self, enemy RobotState, d derived, step int) (int, int) {
 	if d.weapon == nil {
 		return stepToward(self.X, self.Y, enemy.X, enemy.Y, step)
@@ -244,15 +334,13 @@ func stepAway(x, y, fromX, fromY, step int) (int, int) {
 	dx, dy := x-fromX, y-fromY
 	dist := int(isqrt(int64(dx)*int64(dx) + int64(dy)*int64(dy)))
 	if dist == 0 {
-		return x + step, y // 重なっている場合は任意方向（+X）へ
+		return x + step, y
 	}
 	return x + dx*step/dist, y + dy*step/dist
 }
 
 func clampArena(x, y int) (int, int) {
-	x = clamp(x, 0, ArenaW)
-	y = clamp(y, 0, ArenaH)
-	return x, y
+	return clamp(x, 0, ArenaW), clamp(y, 0, ArenaH)
 }
 
 func clamp(v, lo, hi int) int {

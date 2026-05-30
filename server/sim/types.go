@@ -21,11 +21,12 @@ type Chassis struct {
 
 // WeaponSpec は武器カテゴリ固有のパラメータ。
 type WeaponSpec struct {
-	Power       int    `json:"power"`       // 攻撃力
-	Range       int    `json:"range"`       // 射程（表示units）
-	Cooldown    int    `json:"cooldown"`    // 連射間隔（ティック）
-	HeatPerShot int    `json:"heatPerShot"` // 1発の発熱量
-	Pattern     string `json:"pattern"`     // 攻撃パターン（段階1は "single"）
+	Power           int    `json:"power"`           // 攻撃力
+	Range           int    `json:"range"`           // 射程（表示units・発射体の飛距離上限）
+	Cooldown        int    `json:"cooldown"`        // 連射間隔（ティック）
+	HeatPerShot     int    `json:"heatPerShot"`     // 1発の発熱量
+	ProjectileSpeed int    `json:"projectileSpeed"` // 発射体の速度（表示units/tick）
+	Pattern         string `json:"pattern"`         // 攻撃パターン（段階1は "single"）
 }
 
 // ArmorSpec は装甲カテゴリ固有（段階2）。
@@ -101,33 +102,53 @@ type Event struct {
 	Amount int    `json:"amount"`
 }
 
+// Projectile は描画用の発射体スナップショット（ミリ座標）。
+type Projectile struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Source int `json:"source"`
+}
+
 // Frame は1ティックのスナップショット。
 type Frame struct {
-	Tick   int           `json:"tick"`
-	Robots [2]RobotState `json:"robots"`
-	Events []Event       `json:"events"`
+	Tick        int           `json:"tick"`
+	Robots      [2]RobotState `json:"robots"`
+	Projectiles []Projectile  `json:"projectiles"`
+	Events      []Event       `json:"events"`
+}
+
+// Rect はマップ上の矩形（ミリ・x,y=左上）。遮蔽物に使う。
+type Rect struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
 }
 
 // Replay は戦闘の全記録。クライアントはこれを再生して観戦する。
 type Replay struct {
-	Builds [2]Build `json:"builds"`
-	Frames []Frame  `json:"frames"`
-	Winner int      `json:"winner"` // 0=挑戦者/1=相手/-1=引き分け
-	Reason string   `json:"reason"` // "ko"/"timeout"
+	Builds    [2]Build `json:"builds"`
+	Frames    []Frame  `json:"frames"`
+	Obstacles []Rect   `json:"obstacles"`
+	ArenaW    int      `json:"arenaW"` // ミリ
+	ArenaH    int      `json:"arenaH"` // ミリ
+	Winner    int      `json:"winner"` // 0=挑戦者/1=相手/-1=引き分け
+	Reason    string   `json:"reason"` // "ko"/"timeout"
 }
 
 // ---- シミュレーション定数（docs/FunctionalDesign.md §0-9 / BasicDesign §3.5） ----
 
 const (
-	PositionScale = 1000 // 表示座標 = 内部ミリ / PositionScale
-	ArenaW        = 1000 * PositionScale
-	ArenaH        = 1000 * PositionScale
+	PositionScale = 1000                 // 表示座標 = 内部ミリ / PositionScale
+	ArenaW        = 1600 * PositionScale // 段階2でマップ拡大
+	ArenaH        = 1600 * PositionScale
 	MaxTicks      = 1800 // 30tick/秒 × 60秒
 
 	SpeedMin         = 3                  // 最低移動速度（表示units/tick）
 	WeightSpeedCoeff = 200                // 0.2 × PositionScale（超過重量1あたりの速度低下・ミリ）
 	WeightBattDiv    = 10                 // 利用可能電力 = capacity − excessWeight/WeightBattDiv
 	MinSep           = 40 * PositionScale // 最小間隔（重なり防止）
+	HitRadius        = 18 * PositionScale // 発射体の命中半径
 
 	HeatDecay         = 2   // 毎ティックの自然冷却
 	OverheatThreshold = 100 // この熱でオーバーヒート
@@ -135,8 +156,17 @@ const (
 	HeatBattDiv       = 200 // 実消費 = powerCost + powerCost×heat/HeatBattDiv
 )
 
-// 初期配置（ミリ）。FunctionalDesign §0-4。
+// 初期配置（ミリ）。斜め・中心(800,800)について点対称（FunctionalDesign S2-1）。
 var startPositions = [2][2]int{
-	{150 * PositionScale, 500 * PositionScale}, // 挑戦者
-	{850 * PositionScale, 500 * PositionScale}, // 相手
+	{200 * PositionScale, 650 * PositionScale},  // 挑戦者
+	{1400 * PositionScale, 950 * PositionScale}, // 相手
+}
+
+// 遮蔽物（ミリ）。固定・点対称。各スポーン前カバーが初期射線を遮る（FunctionalDesign S2-1）。
+var obstacles = []Rect{
+	{X: 315 * PositionScale, Y: 640 * PositionScale, W: 70 * PositionScale, H: 110 * PositionScale},  // A前カバー
+	{X: 1215 * PositionScale, Y: 850 * PositionScale, W: 70 * PositionScale, H: 110 * PositionScale}, // B前カバー
+	{X: 770 * PositionScale, Y: 760 * PositionScale, W: 60 * PositionScale, H: 80 * PositionScale},   // 中央
+	{X: 550 * PositionScale, Y: 500 * PositionScale, W: 60 * PositionScale, H: 140 * PositionScale},
+	{X: 990 * PositionScale, Y: 960 * PositionScale, W: 60 * PositionScale, H: 140 * PositionScale},
 }
