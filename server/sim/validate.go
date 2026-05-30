@@ -76,6 +76,10 @@ func validatePartSpec(p Part) error {
 		if p.Movement == nil {
 			return fmt.Errorf("移動パーツに movement 仕様がありません")
 		}
+	case "defense":
+		if p.Defense == nil || p.Defense.Charges <= 0 {
+			return fmt.Errorf("防御パーツの仕様が不正です")
+		}
 	}
 	return nil
 }

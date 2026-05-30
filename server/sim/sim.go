@@ -22,7 +22,7 @@ func Simulate(a, b Build) Replay {
 		st[i] = RobotState{
 			X: startPositions[i][0], Y: startPositions[i][1],
 			Hp: der[i].maxHp, Shield: der[i].shield,
-			Battery: der[i].availPower,
+			Battery: der[i].availPower, GuardCharges: der[i].guardCharges,
 		}
 	}
 
@@ -86,7 +86,7 @@ func Simulate(a, b Build) Replay {
 				st[i].DashCd = der[i].dash.DashCooldown
 			}
 		}
-		separate(&st)
+		separate(&st, der[0].totalWeight, der[1].totalWeight)
 
 		var events []Event
 
@@ -180,8 +180,8 @@ func advanceProjectiles(projs []liveProjectile, st *[2]RobotState, events *[]Eve
 		// 移動線分と敵円のスイープ判定（高速弾のすり抜けを防ぐ）。
 		target := 1 - p.source
 		if segHitsCircle(ox, oy, p.x, p.y, st[target].X, st[target].Y, HitRadius) {
-			applyDamage(&st[target], p.damage)
-			*events = append(*events, Event{Type: "attack", Source: p.source, Target: target, Amount: p.damage})
+			dealt, guarded := applyDamage(&st[target], p.damage)
+			*events = append(*events, Event{Type: "attack", Source: p.source, Target: target, Amount: dealt, Guarded: guarded})
 			continue // 命中で消滅
 		}
 		kept = append(kept, p)
@@ -287,43 +287,56 @@ func resolveKeepDistance(self, enemy RobotState, d derived, step int) (int, int)
 	}
 }
 
-func applyDamage(s *RobotState, dmg int) {
+// applyDamage はダメージを適用し、実際に与えた量と「ガードで半減したか」を返す。
+func applyDamage(s *RobotState, dmg int) (dealt int, guarded bool) {
 	if dmg <= 0 {
-		return
+		return 0, false
 	}
-	if s.Defending {
-		dmg = dmg * DefendDamageNum / DefendDamageDen // 防御中は被ダメージ半減
+	if s.Defending && s.GuardCharges > 0 {
+		dmg = dmg * DefendDamageNum / DefendDamageDen // ガードが残っていれば被ダメージ半減
+		s.GuardCharges--                              // 1回分を消費（耐久値）
+		guarded = true
 	}
 	if dmg <= 0 {
-		return
+		return 0, guarded
 	}
+	dealt = dmg
 	if s.Shield > 0 {
 		if dmg <= s.Shield {
 			s.Shield -= dmg
-			return
+			return dealt, guarded
 		}
 		dmg -= s.Shield
 		s.Shield = 0
 	}
 	s.Hp -= dmg
+	return dealt, guarded
 }
 
-// separate は両者が MinSep より近づいた場合、中点を保ったまま MinSep まで引き離す。
-func separate(st *[2]RobotState) {
+// separate は両者が MinSep より近づいた場合、MinSep まで引き離す。
+// 変位は相手の重量に比例して配分する（軽い方が大きく動く＝**重い方は押されにくい**）。
+func separate(st *[2]RobotState, w0, w1 int) {
 	dx, dy := st[1].X-st[0].X, st[1].Y-st[0].Y
 	dist := int(isqrt(int64(dx)*int64(dx) + int64(dy)*int64(dy)))
 	if dist >= MinSep {
 		return
 	}
-	midX, midY := (st[0].X+st[1].X)/2, (st[0].Y+st[1].Y)/2
-	half := MinSep / 2
+	total := w0 + w1
+	if total <= 0 {
+		total = 1
+	}
+	overlap := MinSep - dist
+	share0 := overlap * w1 / total // robot0 の変位（相手 w1 が大きいほど大きく動かされる）
+	share1 := overlap * w0 / total
 	if dist == 0 {
-		st[0].X, st[1].X = midX-half, midX+half
-		st[0].Y, st[1].Y = midY, midY
+		st[0].X -= share0
+		st[1].X += share1
 		return
 	}
-	st[0].X, st[0].Y = midX-dx*half/dist, midY-dy*half/dist
-	st[1].X, st[1].Y = midX+dx*half/dist, midY+dy*half/dist
+	st[0].X -= dx * share0 / dist
+	st[0].Y -= dy * share0 / dist
+	st[1].X += dx * share1 / dist
+	st[1].Y += dy * share1 / dist
 }
 
 func decideTimeout(a, b RobotState) int {

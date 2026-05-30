@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { deriveStats, checkBuild } from "./buildStats";
-import { BALANCED, STARTER_CANNON } from "./data";
+import { CHASSIS, PARTS } from "./data";
 import type { Build } from "./types";
+
+const BALANCED = CHASSIS[0]; // Balanced
+const STARTER_CANNON = PARTS[0]; // Starter Cannon
 
 function emptyRuleset() {
   return { movement: [], weapon: [], special: [] };

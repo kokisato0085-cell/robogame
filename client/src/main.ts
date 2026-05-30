@@ -1,21 +1,23 @@
 import { createRobot, listRobots, challenge, inbox } from "./api";
 import { createPlayer } from "./player";
 import { deriveStats, checkBuild } from "./buildStats";
-import { BALANCED, STARTER_CANNON } from "./data";
-import type { Battle, Build, Condition, ConditionOp, ConditionType, Robot, Ruleset } from "./types";
+import { CHASSIS, PARTS } from "./data";
+import type { Battle, Build, Chassis, Condition, ConditionOp, ConditionType, Part, Robot, Ruleset } from "./types";
 
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
-type Channel = "movement" | "weapon";
+type Channel = "movement" | "weapon" | "special";
 
-// 段階1で UI に出す行動・条件（ダッシュ系は段階2のため除外）。
 const ACTIONS: Record<Channel, string[]> = {
-  movement: ["approach", "retreat", "keepDistance", "stop"],
+  movement: ["approach", "retreat", "keepDistance", "dashApproach", "dashRetreat", "stop"],
   weapon: ["fire", "hold"],
+  special: ["defend"],
 };
-const CONDITION_TYPES: ConditionType[] = ["enemyDistance", "selfHp", "selfShield", "selfHeat", "selfBattery"];
+const CONDITION_TYPES: ConditionType[] = [
+  "enemyDistance", "selfHp", "selfShield", "selfHeat", "selfBattery", "dashReady",
+];
 const CONDITION_OPS: Record<ConditionType, ConditionOp[]> = {
   enemyDistance: ["inRange", "outRange", "lt", "gt"],
   selfHp: ["lt", "gt"],
@@ -28,19 +30,64 @@ const opNeedsValue = (op: ConditionOp): boolean => op === "lt" || op === "gt";
 
 // 編集中のルールセットと、各チャネルの「追加中の条件（AND）」。
 const ruleset: Ruleset = { movement: [], weapon: [], special: [] };
-const pending: Record<Channel, Condition[]> = { movement: [], weapon: [] };
+const pending: Record<Channel, Condition[]> = { movement: [], weapon: [], special: [] };
+
+// 装着中のパーツ名。
+const equipped = new Set<string>();
+
+function selectedChassis(): Chassis {
+  const name = el<HTMLSelectElement>("sel-chassis").value;
+  return CHASSIS.find((c) => c.name === name) ?? CHASSIS[0];
+}
 
 function currentBuild(): Build {
-  const parts = el<HTMLInputElement>("eq-weapon").checked ? [STARTER_CANNON] : [];
-  return { chassis: BALANCED, parts, ruleset };
+  return { chassis: selectedChassis(), parts: PARTS.filter((p) => equipped.has(p.name)), ruleset };
 }
 
 function refreshConstraints(): void {
   const b = currentBuild();
+  const c = b.chassis;
   const s = deriveStats(b);
+  el("chassis-info").textContent =
+    `HP ${c.baseHp} / スロット ${c.slots} / 電力 ${c.batteryCapacity} / 速度 ${c.baseSpeed}` +
+    (c.traits.length ? `（${c.traits.join("・")}）` : "");
   el("constraints").textContent =
-    `スロット ${s.slotsUsed}/${b.chassis.slots} ・ 総重量 ${s.totalWeight} ・ 実効速度 ${s.effSpeed} ・ 利用可能電力 ${s.availPower}`;
+    `スロット ${s.slotsUsed}/${c.slots} ・ 総重量 ${s.totalWeight} ・ 実効速度 ${s.effSpeed} ・ 利用可能電力 ${s.availPower} ・ シールド ${s.shield}`;
   el("build-warn").textContent = checkBuild(b) ?? "";
+}
+
+function describePart(p: Part): string {
+  const base = `${p.name}（重${p.weight} 電${p.powerCost} ス${p.slotCost}`;
+  if (p.weapon) return `${base} ｜ 攻${p.weapon.power} 射${p.weapon.range} 弾速${p.weapon.projectileSpeed}）`;
+  if (p.armor) return `${base} ｜ シールド${p.armor.shield}）`;
+  if (p.movement) return `${base} ｜ ダッシュ${p.movement.dashDistance} CD${p.movement.dashCooldown}）`;
+  if (p.defense) return `${base} ｜ 防御 耐久${p.defense.charges}回）`;
+  return `${base}）`;
+}
+
+function renderChassisSelect(): void {
+  const sel = el<HTMLSelectElement>("sel-chassis");
+  for (const c of CHASSIS) sel.add(new Option(c.name, c.name));
+  sel.addEventListener("change", refreshConstraints);
+}
+
+function renderPartsCatalog(): void {
+  const root = el("parts-catalog");
+  root.innerHTML = "";
+  for (const p of PARTS) {
+    const label = document.createElement("label");
+    label.style.display = "block";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = equipped.has(p.name);
+    cb.addEventListener("change", () => {
+      if (cb.checked) equipped.add(p.name);
+      else equipped.delete(p.name);
+      refreshConstraints();
+    });
+    label.append(cb, ` ${describePart(p)}`);
+    root.appendChild(label);
+  }
 }
 
 // ---- DOM 生成ヘルパー ----
@@ -79,7 +126,7 @@ function moveRule(channel: Channel, idx: number, dir: number): void {
 }
 
 function renderChannel(channel: Channel): void {
-  const root = el(channel === "movement" ? "ch-movement" : "ch-weapon");
+  const root = el(`ch-${channel}`);
   root.innerHTML = "";
 
   const list = document.createElement("ul");
@@ -274,12 +321,14 @@ async function showInbox(): Promise<void> {
 
 // ---- 初期化 ----
 
-el<HTMLInputElement>("eq-weapon").addEventListener("change", refreshConstraints);
 el("btn-register").addEventListener("click", () => void register());
 el("btn-refresh").addEventListener("click", () => void refreshRoster());
 el("btn-restart").addEventListener("click", () => player.restart());
 el("btn-inbox").addEventListener("click", () => void showInbox());
+renderChassisSelect();
+renderPartsCatalog();
 renderChannel("movement");
 renderChannel("weapon");
+renderChannel("special");
 refreshConstraints();
 void refreshRoster();

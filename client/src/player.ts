@@ -8,7 +8,16 @@ const PAD = 20;
 const ROBOT_R = 9;
 const TICKS_PER_SEC = 30;
 const HEAT_MAX = 100;
+const FLOATER_LIFE = 0.6; // ダメージ数値の表示秒数
 const COLORS = ["#2d7dd2", "#e8503a"] as const; // 0=青(挑戦者) / 1=赤(相手)
+
+interface Floater {
+  cx: number;
+  cy: number;
+  amount: number;
+  guarded: boolean;
+  born: number;
+}
 
 export interface Player {
   play(replay: Replay, labelA: string, labelB: string): void;
@@ -20,7 +29,6 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
   let rafId = 0;
   let last: { replay: Replay; labels: [string, string] } | null = null;
 
-  // アリーナ（ミリ）→ Canvas 座標／長さ。
   const scaleOf = (replay: Replay) => (CANVAS - 2 * PAD) / replay.arenaW;
   const pos = (milli: number, s: number): number => PAD + milli * s;
 
@@ -32,19 +40,34 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
     ctx.fillRect(x, y, w * r, 4);
   }
 
+  // ガードを「分割リング」で表現。残り current/max のセグメントを描き、欠けていく様子を見せる。
+  function drawGuardRing(cx: number, cy: number, current: number, max: number, active: boolean): void {
+    if (max <= 0 || current <= 0) return;
+    const r = ROBOT_R + 5;
+    const seg = (Math.PI * 2) / max;
+    const gap = seg * 0.25;
+    ctx.strokeStyle = "#19c2c2";
+    ctx.lineWidth = active ? 3.5 : 2;
+    ctx.globalAlpha = active ? 1 : 0.45;
+    for (let k = 0; k < current; k++) {
+      const a0 = -Math.PI / 2 + k * seg + gap / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, a0, a0 + seg - gap);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
   function drawFrame(replay: Replay, frame: Frame): void {
     const s = scaleOf(replay);
     ctx.clearRect(0, 0, CANVAS, CANVAS);
     ctx.strokeStyle = "#ddd";
     ctx.strokeRect(PAD, PAD, CANVAS - 2 * PAD, CANVAS - 2 * PAD);
 
-    // 遮蔽物。
     ctx.fillStyle = "#bbb";
-    for (const o of replay.obstacles) {
-      ctx.fillRect(pos(o.x, s), pos(o.y, s), o.w * s, o.h * s);
-    }
+    for (const o of replay.obstacles) ctx.fillRect(pos(o.x, s), pos(o.y, s), o.w * s, o.h * s);
 
-    // 発射体。
     for (const p of frame.projectiles ?? []) {
       ctx.fillStyle = COLORS[p.source];
       ctx.beginPath();
@@ -52,7 +75,6 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
       ctx.fill();
     }
 
-    // ロボット本体・HP/シールド/熱バー。
     for (let i = 0; i < 2; i++) {
       const st = frame.robots[i];
       const cx = pos(st.x, s);
@@ -73,6 +95,8 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
         ctx.beginPath();
         ctx.arc(cx, cy, ROBOT_R, 0, Math.PI * 2);
         ctx.fill();
+        // ガード残量を分割リングで表示（防御中は太く明るい）。耐久が減ると欠ける。
+        drawGuardRing(cx, cy, st.guardCharges, replay.frames[0].robots[i].guardCharges, st.defending);
       }
 
       const bw = 26;
@@ -83,6 +107,18 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
     }
   }
 
+  function drawFloaters(floaters: Floater[], now: number): void {
+    ctx.textAlign = "center";
+    ctx.font = "bold 13px sans-serif";
+    for (const f of floaters) {
+      const age = (now - f.born) / 1000;
+      ctx.globalAlpha = Math.max(0, 1 - age / FLOATER_LIFE);
+      ctx.fillStyle = f.guarded ? "#19c2c2" : "#d11";
+      ctx.fillText(`-${f.amount}${f.guarded ? " G" : ""}`, f.cx, f.cy - 18 - age * 26);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function resultText(replay: Replay, labels: [string, string]): string {
     const who = replay.winner === -1 ? "引き分け" : `勝者: ${labels[replay.winner]}`;
     return `終了 — ${who}（${replay.reason}）`;
@@ -90,14 +126,34 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
 
   function run(replay: Replay, labels: [string, string]): void {
     cancelAnimationFrame(rafId);
+    const s = scaleOf(replay);
+    const lastIndex = replay.frames.length - 1;
     let startTime = 0;
+    let processed = 0; // 既にダメージ数値を生成したフレーム index
+    const floaters: Floater[] = [];
+
     const step = (now: number): void => {
       if (startTime === 0) startTime = now;
-      const lastIndex = replay.frames.length - 1;
       const idx = Math.min(Math.floor(((now - startTime) / 1000) * TICKS_PER_SEC), lastIndex);
+
+      // 新しく通過したフレームの attack イベントからダメージ数値を生成。
+      for (let fi = processed + 1; fi <= idx; fi++) {
+        const frame = replay.frames[fi];
+        for (const ev of frame.events ?? []) {
+          if (ev.type !== "attack" || ev.amount <= 0) continue;
+          const t = frame.robots[ev.target];
+          floaters.push({ cx: pos(t.x, s), cy: pos(t.y, s), amount: ev.amount, guarded: ev.guarded, born: now });
+        }
+      }
+      processed = idx;
+      while (floaters.length && (now - floaters[0].born) / 1000 > FLOATER_LIFE) floaters.shift();
+
       drawFrame(replay, replay.frames[idx]);
-      if (idx < lastIndex) {
-        statusEl.textContent = `${labels[0]} vs ${labels[1]} … tick ${replay.frames[idx].tick}`;
+      drawFloaters(floaters, now);
+
+      if (idx < lastIndex || floaters.length) {
+        statusEl.textContent =
+          idx < lastIndex ? `${labels[0]} vs ${labels[1]} … tick ${replay.frames[idx].tick}` : resultText(replay, labels);
         rafId = requestAnimationFrame(step);
       } else {
         statusEl.textContent = resultText(replay, labels);

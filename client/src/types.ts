@@ -24,13 +24,17 @@ export interface ArmorSpec {
   shield: number;
 }
 
+export interface DefenseSpec {
+  charges: number;
+}
+
 export interface MovementSpec {
   dashDistance: number;
   dashCooldown: number;
   dashPowerCost: number;
 }
 
-export type PartCategory = "weapon" | "armor" | "movement" | "power";
+export type PartCategory = "weapon" | "armor" | "movement" | "power" | "defense";
 
 export interface Part {
   name: string;
@@ -41,6 +45,7 @@ export interface Part {
   weapon?: WeaponSpec;
   armor?: ArmorSpec;
   movement?: MovementSpec;
+  defense?: DefenseSpec;
 }
 
 export type ConditionType =
@@ -101,6 +106,8 @@ export interface RobotState {
   battery: number;
   dashCd: number;
   overheated: boolean;
+  defending: boolean;
+  guardCharges: number;
 }
 
 export interface BattleEvent {
@@ -108,6 +115,7 @@ export interface BattleEvent {
   source: number;
   target: number;
   amount: number;
+  guarded: boolean; // attack: 実際にガードで半減されたか
 }
 
 export interface Projectile {

@@ -34,6 +34,11 @@ type ArmorSpec struct {
 	Shield int `json:"shield"`
 }
 
+// DefenseSpec は防御ユニット固有。Charges 回まで被ダメージを半減できる（耐久値）。
+type DefenseSpec struct {
+	Charges int `json:"charges"`
+}
+
 // MovementSpec は移動（ダッシュ）カテゴリ固有（段階2）。
 type MovementSpec struct {
 	DashDistance  int `json:"dashDistance"`
@@ -51,6 +56,7 @@ type Part struct {
 	Weapon    *WeaponSpec   `json:"weapon,omitempty"`
 	Armor     *ArmorSpec    `json:"armor,omitempty"`
 	Movement  *MovementSpec `json:"movement,omitempty"`
+	Defense   *DefenseSpec  `json:"defense,omitempty"`
 }
 
 // Condition は1つの条件（複数ANDでRuleのIF部を構成）。
@@ -84,23 +90,25 @@ type Build struct {
 
 // RobotState は1ティック終了時点の1体の状態。座標はミリ単位。
 type RobotState struct {
-	X          int  `json:"x"`
-	Y          int  `json:"y"`
-	Hp         int  `json:"hp"`
-	Shield     int  `json:"shield"`
-	Heat       int  `json:"heat"`
-	Battery    int  `json:"battery"` // その tick の利用可能電力（段階1は概ね一定）
-	DashCd     int  `json:"dashCd"`
-	Overheated bool `json:"overheated"`
-	Defending  bool `json:"defending"` // この tick 防御中（被ダメ半減・大幅減速）
+	X            int  `json:"x"`
+	Y            int  `json:"y"`
+	Hp           int  `json:"hp"`
+	Shield       int  `json:"shield"`
+	Heat         int  `json:"heat"`
+	Battery      int  `json:"battery"` // その tick の利用可能電力（段階1は概ね一定）
+	DashCd       int  `json:"dashCd"`
+	Overheated   bool `json:"overheated"`
+	Defending    bool `json:"defending"`    // この tick 防御中（被ダメ半減・大幅減速）
+	GuardCharges int  `json:"guardCharges"` // 残りガード回数（0で半減しなくなる）
 }
 
 // Event は1ティック内の出来事。
 type Event struct {
-	Type   string `json:"type"` // "attack"/"overheat"/"destroyed"
-	Source int    `json:"source"`
-	Target int    `json:"target"`
-	Amount int    `json:"amount"`
+	Type    string `json:"type"` // "attack"/"overheat"/"destroyed"
+	Source  int    `json:"source"`
+	Target  int    `json:"target"`
+	Amount  int    `json:"amount"`
+	Guarded bool   `json:"guarded"` // attack: 実際にガードで半減されたか
 }
 
 // Projectile は描画用の発射体スナップショット（ミリ座標）。

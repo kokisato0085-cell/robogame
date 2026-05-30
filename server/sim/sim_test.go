@@ -190,7 +190,8 @@ func boosterPart() Part {
 }
 
 func guardPart() Part {
-	return Part{Name: "Guard", Category: "defense", Weight: 10, SlotCost: 1, PowerCost: 15}
+	return Part{Name: "Guard", Category: "defense", Weight: 10, SlotCost: 1, PowerCost: 15,
+		Defense: &DefenseSpec{Charges: 5}}
 }
 
 func armorPart() Part {
@@ -198,7 +199,7 @@ func armorPart() Part {
 }
 
 func TestApplyDamageDefendHalves(t *testing.T) {
-	s := RobotState{Hp: 100, Defending: true}
+	s := RobotState{Hp: 100, Defending: true, GuardCharges: 1}
 	applyDamage(&s, 20)
 	if s.Hp != 90 {
 		t.Errorf("防御中の被ダメージ半減が効いていない: hp=%d, want 90", s.Hp)
@@ -240,4 +241,34 @@ func TestDashSetsCooldown(t *testing.T) {
 		}
 	}
 	t.Error("ダッシュが使われていない（DashCd が立たない）")
+}
+
+func TestGuardChargesDeplete(t *testing.T) {
+	s := RobotState{Hp: 1000, Defending: true, GuardCharges: 2}
+	applyDamage(&s, 20) // 半減10、残1
+	applyDamage(&s, 20) // 半減10、残0
+	applyDamage(&s, 20) // 耐久切れ→全20
+	if s.Hp != 960 {
+		t.Errorf("ガード耐久の消費が不正: hp=%d, want 960", s.Hp)
+	}
+	if s.GuardCharges != 0 {
+		t.Errorf("ガード残量=%d, want 0", s.GuardCharges)
+	}
+}
+
+func TestHeavierResistsPush(t *testing.T) {
+	// 0=重い(100) / 1=軽い(20)。近接状態から引き離すと軽い側が大きく動く。
+	st := [2]RobotState{{X: 0, Y: 0}, {X: 10 * PositionScale, Y: 0}}
+	b0, b1 := st[0].X, st[1].X
+	separate(&st, 100, 20)
+	m0, m1 := st[0].X-b0, st[1].X-b1
+	if m0 < 0 {
+		m0 = -m0
+	}
+	if m1 < 0 {
+		m1 = -m1
+	}
+	if m1 <= m0 {
+		t.Errorf("軽い側がより大きく動くはず: 重い移動=%d, 軽い移動=%d", m0, m1)
+	}
 }

@@ -13,6 +13,7 @@ type derived struct {
 	weaponRangeMilli int           // 射程をミリ単位に換算した値（距離比較用）
 	dash             *MovementSpec // 移動パーツ（段階2の Booster 等）。無ければ nil
 	hasDefense       bool          // 防御ユニットを装備しているか
+	guardCharges     int           // ガード可能回数（防御ユニットの耐久値合計）
 }
 
 // derive はビルドの実効ステータスを算出する。
@@ -34,6 +35,9 @@ func derive(b Build) derived {
 		}
 		if p.Category == "defense" {
 			d.hasDefense = true
+			if p.Defense != nil {
+				d.guardCharges += p.Defense.Charges
+			}
 		}
 	}
 

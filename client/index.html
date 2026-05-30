@@ -28,8 +28,10 @@
     <label>ロボ名 <input type="text" id="in-name" value="MyBot" /></label>
 
     <h2>2. 組立</h2>
-    <p>素体: <strong>Balanced</strong>（HP100 / 重量20 / スロット4 / 電力100 / 速度12）</p>
-    <label><input type="checkbox" id="eq-weapon" checked /> Starter Cannon を装着（攻12 射250 CD8 発熱18 ／ 重量8 電力6 スロット1）</label>
+    <label>素体: <select id="sel-chassis"></select></label>
+    <p id="chassis-info"></p>
+    <p>パーツ（カタログから装着・スロット内）:</p>
+    <div id="parts-catalog"></div>
     <p id="constraints"></p>
     <p class="warn" id="build-warn"></p>
 
@@ -38,6 +40,8 @@
     <div id="ch-movement"></div>
     <h3>武器チャネル（デフォルト: hold）</h3>
     <div id="ch-weapon"></div>
+    <h3>特殊チャネル（防御など・要 防御ユニット）</h3>
+    <div id="ch-special"></div>
 
     <h2>4. 登録</h2>
     <button id="btn-register">登録</button><span id="register-msg"></span>
