@@ -3,64 +3,85 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RoboGame — ビルド作成（段階1）</title>
+    <title>RoboGame（仮称）</title>
     <style>
-      body { font-family: sans-serif; margin: 24px; color: #222; max-width: 820px; }
+      body { font-family: sans-serif; margin: 24px; color: #222; max-width: 860px; }
       h1 { font-size: 20px; }
-      h2 { font-size: 15px; margin-top: 22px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+      h2 { font-size: 15px; margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
       h3 { font-size: 13px; margin: 12px 0 4px; }
       label { font-size: 13px; margin-right: 10px; }
       input[type="text"] { width: 120px; }
       button { cursor: pointer; margin-left: 4px; }
-      #constraints { font-size: 13px; color: #333; }
+      .tabs { margin: 12px 0; border-bottom: 2px solid #ddd; }
+      .tab { font-size: 14px; padding: 6px 14px; border: none; background: none; margin: 0; border-bottom: 2px solid transparent; }
+      .tab.active { font-weight: bold; color: #2d7dd2; border-bottom-color: #2d7dd2; }
+      .panel { display: none; }
+      .panel.active { display: block; }
+      #constraints, .info { font-size: 13px; color: #333; }
       .warn { color: #c0392b; font-size: 13px; min-height: 18px; }
       .addform { font-size: 13px; background: #fafafa; border: 1px solid #eee; padding: 8px; margin-top: 6px; }
       ul { font-size: 13px; }
-      .note { color: #888; font-size: 12px; }
-      #register-msg { font-size: 13px; margin-left: 8px; }
+      canvas { border: 1px solid #ccc; background: #fafafa; display: block; }
+      .msg, #register-msg { font-size: 13px; margin-left: 8px; }
     </style>
   </head>
   <body>
-    <h1>RoboGame — ビルド作成（段階1）</h1>
+    <h1>RoboGame（仮称）</h1>
+    <div class="tabs">
+      <button class="tab active" data-tab="create">ロボ作成</button>
+      <button class="tab" data-tab="battle">対戦</button>
+      <button class="tab" data-tab="inbox">受信箱</button>
+    </div>
 
-    <h2>1. 識別</h2>
-    <label>所有者 <input type="text" id="in-owner" value="you" /></label>
-    <label>ロボ名 <input type="text" id="in-name" value="MyBot" /></label>
+    <!-- ロボ作成 -->
+    <section id="panel-create" class="panel active">
+      <h2>1. 識別</h2>
+      <label>所有者 <input type="text" id="in-owner" value="you" /></label>
+      <label>ロボ名 <input type="text" id="in-name" value="MyBot" /></label>
 
-    <h2>2. 組立</h2>
-    <label>素体: <select id="sel-chassis"></select></label>
-    <p id="chassis-info"></p>
-    <p>パーツ（カタログから装着・スロット内）:</p>
-    <div id="parts-catalog"></div>
-    <p id="constraints"></p>
-    <p class="warn" id="build-warn"></p>
+      <h2>2. 組立</h2>
+      <label>素体: <select id="sel-chassis"></select></label>
+      <p id="chassis-info" class="info"></p>
+      <p>パーツ（カタログから装着・スロット内）:</p>
+      <div id="parts-catalog"></div>
+      <p id="constraints"></p>
+      <p class="warn" id="build-warn"></p>
 
-    <h2>3. 行動アルゴリズム（チャネル別・上が高優先）</h2>
-    <h3>移動チャネル（デフォルト: approach）</h3>
-    <div id="ch-movement"></div>
-    <h3>武器チャネル（デフォルト: hold）</h3>
-    <div id="ch-weapon"></div>
-    <h3>特殊チャネル（防御など・要 防御ユニット）</h3>
-    <div id="ch-special"></div>
+      <h2>3. 行動アルゴリズム（チャネル別・上が高優先）</h2>
+      <h3>移動チャネル（デフォルト: approach）</h3>
+      <div id="ch-movement"></div>
+      <h3>武器チャネル（デフォルト: hold）</h3>
+      <div id="ch-weapon"></div>
+      <h3>特殊チャネル（防御など・要 防御ユニット）</h3>
+      <div id="ch-special"></div>
 
-    <h2>4. 登録</h2>
-    <button id="btn-register">登録</button><span id="register-msg"></span>
+      <h2>4. 登録</h2>
+      <button id="btn-register">登録</button><span id="register-msg"></span>
+    </section>
 
-    <h2>5. 名簿・相手選択</h2>
-    <button id="btn-refresh">一覧更新</button>
-    <label> あなたのロボット（挑戦者）: <select id="sel-challenger"></select></label>
-    <ul id="roster"></ul>
-    <p class="warn" id="challenge-msg"></p>
+    <!-- 対戦 -->
+    <section id="panel-battle" class="panel">
+      <h2>名簿・相手選択</h2>
+      <button id="btn-refresh">一覧更新</button>
+      <label> あなたのロボット（挑戦者）: <select id="sel-challenger"></select></label>
+      <ul id="roster"></ul>
+      <p class="warn" id="challenge-msg"></p>
+      <h2>観戦</h2>
+      <canvas id="arena-battle" width="600" height="600"></canvas>
+      <div><button id="btn-restart-battle">再再生</button> <span id="status-battle">挑戦すると戦闘が再生されます。</span></div>
+    </section>
 
-    <h2>6. 観戦</h2>
-    <canvas id="arena" width="600" height="600" style="border:1px solid #ccc;background:#fafafa;display:block"></canvas>
-    <div><button id="btn-restart">再再生</button> <span id="status">挑戦すると戦闘が再生されます。</span></div>
-
-    <h2>7. 受信箱（自分のロボットが挑まれた結果）</h2>
-    <label>所有者 <input type="text" id="in-inbox-owner" value="you" /></label>
-    <button id="btn-inbox">受信箱を表示</button>
-    <ul id="inbox"></ul>
-    <p class="warn" id="inbox-msg"></p>
+    <!-- 受信箱 -->
+    <section id="panel-inbox" class="panel">
+      <h2>受信箱（自分のロボットが挑まれた結果）</h2>
+      <label>所有者 <input type="text" id="in-inbox-owner" value="you" /></label>
+      <button id="btn-inbox">受信箱を表示</button>
+      <ul id="inbox"></ul>
+      <p class="warn" id="inbox-msg"></p>
+      <h2>観戦</h2>
+      <canvas id="arena-inbox" width="600" height="600"></canvas>
+      <div><button id="btn-restart-inbox">再再生</button> <span id="status-inbox">「観戦」を押すと再生されます。</span></div>
+    </section>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -235,6 +235,7 @@ async function register(): Promise<void> {
     const robot = await createRobot(owner, name, build);
     msg.textContent = `登録成功: ${robot.name}（${robot.id}）`;
     el<HTMLInputElement>("in-inbox-owner").value = owner; // 受信箱の所有者欄も自分に合わせる
+    localStorage.setItem("rg-owner", owner); // owner を記憶
     await refreshRoster(); // 登録した機体を名簿に反映
   } catch (e) {
     msg.textContent = `登録失敗: ${(e as Error).message}`;
@@ -243,7 +244,8 @@ async function register(): Promise<void> {
 
 // ---- 名簿・挑戦・観戦（F2 / F3） ----
 
-const player = createPlayer(el<HTMLCanvasElement>("arena"), el("status"));
+const playerBattle = createPlayer(el<HTMLCanvasElement>("arena-battle"), el("status-battle"));
+const playerInbox = createPlayer(el<HTMLCanvasElement>("arena-inbox"), el("status-inbox"));
 
 async function refreshRoster(): Promise<void> {
   const roster = await listRobots();
@@ -276,7 +278,7 @@ async function startChallenge(opponent: Robot): Promise<void> {
   }
   try {
     const battle = await challenge(challengerId, opponent.id);
-    player.play(battle.replay, battle.challenger.name, battle.opponent.name);
+    playerBattle.play(battle.replay, battle.challenger.name, battle.opponent.name);
   } catch (e) {
     msg.textContent = `挑戦失敗: ${(e as Error).message}`;
   }
@@ -310,7 +312,7 @@ async function showInbox(): Promise<void> {
       const li = document.createElement("li");
       li.append(
         `${b.challenger.name}（${b.challenger.owner}）からの挑戦 → ${defenderResult(b)} `,
-        makeButton("観戦", () => player.play(b.replay, b.challenger.name, b.opponent.name)),
+        makeButton("観戦", () => playerInbox.play(b.replay, b.challenger.name, b.opponent.name)),
       );
       list.appendChild(li);
     }
@@ -321,9 +323,30 @@ async function showInbox(): Promise<void> {
 
 // ---- 初期化 ----
 
+// タブ切替。
+function setActiveTab(name: string): void {
+  for (const btn of document.querySelectorAll<HTMLElement>(".tab")) {
+    btn.classList.toggle("active", btn.dataset.tab === name);
+  }
+  for (const panel of document.querySelectorAll<HTMLElement>(".panel")) {
+    panel.classList.toggle("active", panel.id === `panel-${name}`);
+  }
+}
+for (const btn of document.querySelectorAll<HTMLElement>(".tab")) {
+  btn.addEventListener("click", () => setActiveTab(btn.dataset.tab ?? "create"));
+}
+
+// owner 名を記憶して自動入力（毎回入力の手間を緩和）。
+const savedOwner = localStorage.getItem("rg-owner");
+if (savedOwner) {
+  el<HTMLInputElement>("in-owner").value = savedOwner;
+  el<HTMLInputElement>("in-inbox-owner").value = savedOwner;
+}
+
 el("btn-register").addEventListener("click", () => void register());
 el("btn-refresh").addEventListener("click", () => void refreshRoster());
-el("btn-restart").addEventListener("click", () => player.restart());
+el("btn-restart-battle").addEventListener("click", () => playerBattle.restart());
+el("btn-restart-inbox").addEventListener("click", () => playerInbox.restart());
 el("btn-inbox").addEventListener("click", () => void showInbox());
 renderChassisSelect();
 renderPartsCatalog();
