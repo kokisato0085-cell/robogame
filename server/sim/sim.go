@@ -215,18 +215,27 @@ func insideAnyObstacle(x, y int) bool {
 	return false
 }
 
-// slideAroundObstacles は壁ずり（FunctionalDesign S2-3）。直進が塞がれたら軸別に通れる方へ。
+// slideAroundObstacles は壁ずり（FunctionalDesign S2-3）。
+// 直進が塞がれたら軸別に通れる方へ。正面衝突（軸別も不可）なら進行方向に垂直へ回り込む（壁伝い）。
 func slideAroundObstacles(oldX, oldY, nx, ny int) (int, int) {
-	switch {
-	case !insideAnyObstacle(nx, ny):
+	if !insideAnyObstacle(nx, ny) {
 		return nx, ny
-	case !insideAnyObstacle(nx, oldY):
-		return nx, oldY
-	case !insideAnyObstacle(oldX, ny):
-		return oldX, ny
-	default:
-		return oldX, oldY
 	}
+	if !insideAnyObstacle(nx, oldY) {
+		return nx, oldY
+	}
+	if !insideAnyObstacle(oldX, ny) {
+		return oldX, ny
+	}
+	// 正面から壁に当たり軸スライドも不可なら、進行方向に垂直な向きへ壁伝いに動く。
+	dx, dy := nx-oldX, ny-oldY
+	for _, c := range [2][2]int{{-dy, dx}, {dy, -dx}} {
+		px, py := clampArena(oldX+c[0], oldY+c[1])
+		if (px != oldX || py != oldY) && !insideAnyObstacle(px, py) {
+			return px, py
+		}
+	}
+	return oldX, oldY
 }
 
 // ---- 移動 ----

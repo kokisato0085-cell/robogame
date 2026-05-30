@@ -162,11 +162,11 @@ var startPositions = [2][2]int{
 	{1400 * PositionScale, 950 * PositionScale}, // 相手
 }
 
-// 遮蔽物（ミリ）。固定・点対称。各スポーン前カバーが初期射線を遮る（FunctionalDesign S2-1）。
+// 遮蔽物（ミリ）。固定・中心(800,800)について点対称。
+// 中央の接近ラインを空け（対称な釣り合いによる膠着を防ぐ）、カバーは脇に配置する（FunctionalDesign S2-1）。
 var obstacles = []Rect{
-	{X: 315 * PositionScale, Y: 640 * PositionScale, W: 70 * PositionScale, H: 110 * PositionScale},  // A前カバー
-	{X: 1215 * PositionScale, Y: 850 * PositionScale, W: 70 * PositionScale, H: 110 * PositionScale}, // B前カバー
-	{X: 770 * PositionScale, Y: 760 * PositionScale, W: 60 * PositionScale, H: 80 * PositionScale},   // 中央
-	{X: 550 * PositionScale, Y: 500 * PositionScale, W: 60 * PositionScale, H: 140 * PositionScale},
-	{X: 990 * PositionScale, Y: 960 * PositionScale, W: 60 * PositionScale, H: 140 * PositionScale},
+	{X: 700 * PositionScale, Y: 400 * PositionScale, W: 80 * PositionScale, H: 140 * PositionScale},  // 上中央寄り
+	{X: 820 * PositionScale, Y: 1060 * PositionScale, W: 80 * PositionScale, H: 140 * PositionScale}, // 下中央寄り（上の点対称）
+	{X: 380 * PositionScale, Y: 820 * PositionScale, W: 80 * PositionScale, H: 120 * PositionScale},  // A側カバー
+	{X: 1140 * PositionScale, Y: 660 * PositionScale, W: 80 * PositionScale, H: 120 * PositionScale}, // B側カバー（点対称）
 }

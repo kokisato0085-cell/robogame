@@ -19,5 +19,5 @@ export const STARTER_CANNON: Part = {
   weight: 8,
   powerCost: 6,
   slotCost: 1,
-  weapon: { power: 12, range: 250, cooldown: 8, heatPerShot: 18, pattern: "single" },
+  weapon: { power: 12, range: 250, cooldown: 8, heatPerShot: 18, projectileSpeed: 40, pattern: "single" },
 };

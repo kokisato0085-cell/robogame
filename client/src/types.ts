@@ -16,6 +16,7 @@ export interface WeaponSpec {
   range: number;
   cooldown: number;
   heatPerShot: number;
+  projectileSpeed: number;
   pattern: string;
 }
 
@@ -109,15 +110,32 @@ export interface BattleEvent {
   amount: number;
 }
 
+export interface Projectile {
+  x: number;
+  y: number;
+  source: number;
+}
+
 export interface Frame {
   tick: number;
   robots: [RobotState, RobotState];
+  projectiles: Projectile[] | null;
   events: BattleEvent[] | null;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface Replay {
   builds: [Build, Build];
   frames: Frame[];
+  obstacles: Rect[];
+  arenaW: number;
+  arenaH: number;
   winner: number;
   reason: string;
 }

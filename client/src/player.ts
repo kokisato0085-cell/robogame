@@ -1,19 +1,14 @@
 import type { Replay, Frame } from "./types";
 
-// Canvas でリプレイを再生する観戦プレイヤー（FunctionalDesign §4 描画仕様）。
+// Canvas でリプレイを再生する観戦プレイヤー（FunctionalDesign §4 / S2-5）。
 // 描画はリプレイの再生に徹し、ゲームロジックは持たない（sim と描画の分離）。
 
 const CANVAS = 600;
-const PAD = 30;
-const ROBOT_R = 12;
-const ARENA_MILLI = 1_000_000; // アリーナ 1000units × PositionScale(1000)
+const PAD = 20;
+const ROBOT_R = 9;
 const TICKS_PER_SEC = 30;
-const HEAT_MAX = 100; // OverheatThreshold（熱ゲージの満タン基準）
+const HEAT_MAX = 100;
 const COLORS = ["#2d7dd2", "#e8503a"] as const; // 0=青(挑戦者) / 1=赤(相手)
-
-function toCanvas(milli: number): number {
-  return PAD + (milli / ARENA_MILLI) * (CANVAS - 2 * PAD);
-}
 
 export interface Player {
   play(replay: Replay, labelA: string, labelB: string): void;
@@ -25,6 +20,10 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
   let rafId = 0;
   let last: { replay: Replay; labels: [string, string] } | null = null;
 
+  // アリーナ（ミリ）→ Canvas 座標／長さ。
+  const scaleOf = (replay: Replay) => (CANVAS - 2 * PAD) / replay.arenaW;
+  const pos = (milli: number, s: number): number => PAD + milli * s;
+
   function drawBar(x: number, y: number, w: number, ratio: number, color: string): void {
     const r = Math.max(0, Math.min(1, ratio));
     ctx.fillStyle = "#eee";
@@ -34,28 +33,33 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
   }
 
   function drawFrame(replay: Replay, frame: Frame): void {
+    const s = scaleOf(replay);
     ctx.clearRect(0, 0, CANVAS, CANVAS);
     ctx.strokeStyle = "#ddd";
     ctx.strokeRect(PAD, PAD, CANVAS - 2 * PAD, CANVAS - 2 * PAD);
 
-    // 攻撃ビーム（このティックの attack を線で表現）。
-    for (const ev of frame.events ?? []) {
-      if (ev.type !== "attack") continue;
-      ctx.strokeStyle = COLORS[ev.source];
-      ctx.beginPath();
-      ctx.moveTo(toCanvas(frame.robots[ev.source].x), toCanvas(frame.robots[ev.source].y));
-      ctx.lineTo(toCanvas(frame.robots[ev.target].x), toCanvas(frame.robots[ev.target].y));
-      ctx.stroke();
+    // 遮蔽物。
+    ctx.fillStyle = "#bbb";
+    for (const o of replay.obstacles) {
+      ctx.fillRect(pos(o.x, s), pos(o.y, s), o.w * s, o.h * s);
     }
 
+    // 発射体。
+    for (const p of frame.projectiles ?? []) {
+      ctx.fillStyle = COLORS[p.source];
+      ctx.beginPath();
+      ctx.arc(pos(p.x, s), pos(p.y, s), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ロボット本体・HP/シールド/熱バー。
     for (let i = 0; i < 2; i++) {
       const st = frame.robots[i];
-      const cx = toCanvas(st.x);
-      const cy = toCanvas(st.y);
+      const cx = pos(st.x, s);
+      const cy = pos(st.y, s);
       const maxHp = replay.builds[i].chassis.baseHp;
       const maxShield = replay.frames[0].robots[i].shield;
 
-      // 本体（破壊時は×）。
       if (st.hp <= 0) {
         ctx.strokeStyle = COLORS[i];
         ctx.beginPath();
@@ -71,11 +75,10 @@ export function createPlayer(canvas: HTMLCanvasElement, statusEl: HTMLElement): 
         ctx.fill();
       }
 
-      // バー（HP / シールド / 熱）。
-      const bw = 30;
+      const bw = 26;
       const bx = cx - bw / 2;
-      drawBar(bx, cy - ROBOT_R - 18, bw, st.hp / maxHp, COLORS[i]);
-      if (maxShield > 0) drawBar(bx, cy - ROBOT_R - 12, bw, st.shield / maxShield, "#3aa0e8");
+      drawBar(bx, cy - ROBOT_R - 16, bw, st.hp / maxHp, COLORS[i]);
+      if (maxShield > 0) drawBar(bx, cy - ROBOT_R - 11, bw, st.shield / maxShield, "#3aa0e8");
       drawBar(bx, cy - ROBOT_R - 6, bw, st.heat / HEAT_MAX, st.overheated ? "#d00" : "#e8a13a");
     }
   }

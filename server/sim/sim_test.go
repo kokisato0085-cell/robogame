@@ -61,8 +61,8 @@ func TestInitialFrameAndArena(t *testing.T) {
 	if f0.Robots[0].Hp != 100 || f0.Robots[1].Hp != 100 {
 		t.Errorf("初期HPが不正")
 	}
-	if len(r.Obstacles) != 5 {
-		t.Errorf("遮蔽物 = %d 個, want 5", len(r.Obstacles))
+	if len(r.Obstacles) != 4 {
+		t.Errorf("遮蔽物 = %d 個, want 4", len(r.Obstacles))
 	}
 	if r.ArenaW != 1600*PositionScale {
 		t.Errorf("ArenaW = %d", r.ArenaW)
@@ -109,6 +109,24 @@ func TestRobotsNeverInsideObstacle(t *testing.T) {
 				t.Fatalf("tick %d: ロボ%d が遮蔽物内 (%d,%d)", f.Tick, i, f.Robots[i].X, f.Robots[i].Y)
 			}
 		}
+	}
+}
+
+func minRobotDistance(r Replay) int {
+	min := int(^uint(0) >> 1)
+	for _, f := range r.Frames {
+		if d := int(isqrt(dist2Of(f.Robots[0], f.Robots[1]))); d < min {
+			min = d
+		}
+	}
+	return min
+}
+
+// 指令なし（デフォルト接近）の2体が中央レーンを通って互いに接近できる（膠着しない）。
+func TestDefaultApproachReachesEnemy(t *testing.T) {
+	r := Simulate(unarmed(), unarmed())
+	if md := minRobotDistance(r); md > 60*PositionScale {
+		t.Errorf("接近できていない（膠着の疑い）: 最小距離=%d", md)
 	}
 }
 
