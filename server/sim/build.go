@@ -10,7 +10,9 @@ type derived struct {
 	availPower       int
 	shield           int
 	weapon           *WeaponSpec
-	weaponRangeMilli int // 射程をミリ単位に換算した値（距離比較用）
+	weaponRangeMilli int           // 射程をミリ単位に換算した値（距離比較用）
+	dash             *MovementSpec // 移動パーツ（段階2の Booster 等）。無ければ nil
+	hasDefense       bool          // 防御ユニットを装備しているか
 }
 
 // derive はビルドの実効ステータスを算出する。
@@ -26,6 +28,12 @@ func derive(b Build) derived {
 		}
 		if p.Weapon != nil && d.weapon == nil {
 			d.weapon = p.Weapon
+		}
+		if p.Movement != nil && d.dash == nil {
+			d.dash = p.Movement
+		}
+		if p.Category == "defense" {
+			d.hasDefense = true
 		}
 	}
 

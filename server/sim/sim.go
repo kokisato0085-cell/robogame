@@ -51,22 +51,40 @@ func Simulate(a, b Build) Replay {
 		// 2) スナップショットから両者の行動を決定（同時解決）。
 		snap := st
 		dsq := dist2Of(snap[0], snap[1])
-		var moveAct, weapAct [2]string
+		var moveAct, weapAct, defendAct [2]string
 		for i := 0; i < 2; i++ {
 			ctx := evalContext{self: snap[i], d: der[i], dist2: dsq}
 			moveAct[i] = chooseAction(builds[i].Ruleset.Movement, ctx, "approach")
 			weapAct[i] = chooseAction(builds[i].Ruleset.Weapon, ctx, "hold")
+			defendAct[i] = chooseAction(builds[i].Ruleset.Special, ctx, "none")
 		}
 
-		// 3) 移動（壁ずりで遮蔽物を回り込む）＋重なり防止。
+		// 3) 移動（ダッシュ・防御を反映）＋壁ずり＋重なり防止。
 		for i := 0; i < 2; i++ {
+			defending := defendAct[i] == "defend" && der[i].hasDefense
+			st[i].Defending = defending
+
+			dashing := (moveAct[i] == "dashApproach" || moveAct[i] == "dashRetreat") &&
+				der[i].dash != nil && snap[i].DashCd == 0
+
 			step := der[i].effSpeed
+			if dashing {
+				step = der[i].dash.DashDistance * PositionScale
+			}
 			if snap[i].Overheated {
 				step /= 2
 			}
+			if defending {
+				step = step * DefendSpeedNum / DefendSpeedDen // 大幅減速
+			}
+
 			nx, ny := resolveMovement(moveAct[i], snap[i], snap[1-i], der[i], step)
 			nx, ny = clampArena(nx, ny)
 			st[i].X, st[i].Y = slideAroundObstacles(snap[i].X, snap[i].Y, nx, ny)
+
+			if dashing {
+				st[i].DashCd = der[i].dash.DashCooldown
+			}
 		}
 		separate(&st)
 
@@ -270,6 +288,12 @@ func resolveKeepDistance(self, enemy RobotState, d derived, step int) (int, int)
 }
 
 func applyDamage(s *RobotState, dmg int) {
+	if dmg <= 0 {
+		return
+	}
+	if s.Defending {
+		dmg = dmg * DefendDamageNum / DefendDamageDen // 防御中は被ダメージ半減
+	}
 	if dmg <= 0 {
 		return
 	}

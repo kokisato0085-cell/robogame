@@ -92,6 +92,7 @@ type RobotState struct {
 	Battery    int  `json:"battery"` // その tick の利用可能電力（段階1は概ね一定）
 	DashCd     int  `json:"dashCd"`
 	Overheated bool `json:"overheated"`
+	Defending  bool `json:"defending"` // この tick 防御中（被ダメ半減・大幅減速）
 }
 
 // Event は1ティック内の出来事。
@@ -150,10 +151,17 @@ const (
 	MinSep           = 40 * PositionScale // 最小間隔（重なり防止）
 	HitRadius        = 18 * PositionScale // 発射体の命中半径
 
-	HeatDecay         = 2   // 毎ティックの自然冷却
-	OverheatThreshold = 100 // この熱でオーバーヒート
-	OverheatRecover   = 40  // この熱まで下がると解除
-	HeatBattDiv       = 200 // 実消費 = powerCost + powerCost×heat/HeatBattDiv
+	HeatDecay            = 2   // 毎ティックの自然冷却
+	OverheatThreshold    = 100 // この熱でオーバーヒート
+	OverheatRecover      = 40  // この熱まで下がると解除
+	HeatBattDiv          = 200 // 実消費 = powerCost + powerCost×heat/HeatBattDiv
+	OverheatPowerPenalty = 30  // オーバーヒート中の追加電力消費（効果は案B=段階4で有効化）
+
+	// 防御（2-E）：被ダメージ ×1/2、移動量 ×1/4。
+	DefendDamageNum = 1
+	DefendDamageDen = 2
+	DefendSpeedNum  = 1
+	DefendSpeedDen  = 4
 )
 
 // 初期配置（ミリ）。斜め・中心(800,800)について点対称（FunctionalDesign S2-1）。

@@ -5,7 +5,7 @@ import "fmt"
 // 妥当な種別の集合（behavior.go の評価対象と対応）。検証時のみ使用するため
 // map を用いてよい（Simulate 内では使わないので決定論には影響しない）。
 var (
-	validCategories      = map[string]bool{"weapon": true, "armor": true, "movement": true, "power": true}
+	validCategories      = map[string]bool{"weapon": true, "armor": true, "movement": true, "power": true, "defense": true}
 	validMovementActions = map[string]bool{"approach": true, "retreat": true, "keepDistance": true, "dashApproach": true, "dashRetreat": true, "stop": true}
 	validWeaponActions   = map[string]bool{"fire": true, "hold": true}
 	validSpecialActions  = map[string]bool{"defend": true, "powerToggle": true}

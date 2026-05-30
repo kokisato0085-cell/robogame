@@ -181,3 +181,63 @@ func TestSegHitsCircle(t *testing.T) {
 		t.Error("線分近傍が命中しない（トンネリング）")
 	}
 }
+
+// ---- 段階3：パーツ拡張 ----
+
+func boosterPart() Part {
+	return Part{Name: "Booster", Category: "movement", Weight: 5, SlotCost: 1,
+		Movement: &MovementSpec{DashDistance: 120, DashCooldown: 30, DashPowerCost: 20}}
+}
+
+func guardPart() Part {
+	return Part{Name: "Guard", Category: "defense", Weight: 10, SlotCost: 1, PowerCost: 15}
+}
+
+func armorPart() Part {
+	return Part{Name: "Armor", Category: "armor", Weight: 6, SlotCost: 1, Armor: &ArmorSpec{Shield: 30}}
+}
+
+func TestApplyDamageDefendHalves(t *testing.T) {
+	s := RobotState{Hp: 100, Defending: true}
+	applyDamage(&s, 20)
+	if s.Hp != 90 {
+		t.Errorf("防御中の被ダメージ半減が効いていない: hp=%d, want 90", s.Hp)
+	}
+	n := RobotState{Hp: 100}
+	applyDamage(&n, 20)
+	if n.Hp != 80 {
+		t.Errorf("通常被ダメージ: hp=%d, want 80", n.Hp)
+	}
+}
+
+func TestDeriveDashAndDefense(t *testing.T) {
+	d := derive(Build{Chassis: balancedChassis(), Parts: []Part{boosterPart(), guardPart()}})
+	if d.dash == nil {
+		t.Error("ダッシュパーツが認識されない")
+	}
+	if !d.hasDefense {
+		t.Error("防御ユニットが認識されない")
+	}
+}
+
+func TestValidateAcceptsDefensiveParts(t *testing.T) {
+	b := Build{Chassis: balancedChassis(), Parts: []Part{armorPart(), boosterPart(), guardPart()}}
+	if err := ValidateBuild(b); err != nil {
+		t.Errorf("有効なビルドが拒否された: %v", err)
+	}
+}
+
+func TestDashSetsCooldown(t *testing.T) {
+	dashBot := Build{
+		Chassis: balancedChassis(),
+		Parts:   []Part{boosterPart()},
+		Ruleset: Ruleset{Movement: []Rule{{Conditions: []Condition{{Type: "dashReady", Op: "exists"}}, Action: "dashApproach"}}},
+	}
+	r := Simulate(dashBot, unarmed())
+	for _, f := range r.Frames {
+		if f.Robots[0].DashCd > 0 {
+			return // ダッシュが使われ CD が立った
+		}
+	}
+	t.Error("ダッシュが使われていない（DashCd が立たない）")
+}
