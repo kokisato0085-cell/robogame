@@ -57,7 +57,8 @@ export type ConditionType =
   | "selfHeat"
   | "selfBattery"
   | "dashReady"
-  | "lineOfSight";
+  | "lineOfSight"
+  | "hitWall";
 
 export type ConditionOp =
   | "inRange"
@@ -113,6 +114,7 @@ export interface RobotState {
   overheated: boolean;
   defending: boolean;
   guardCharges: number;
+  blocked: boolean;
 }
 
 export interface BattleEvent {

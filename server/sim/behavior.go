@@ -58,6 +58,8 @@ func condMet(c Condition, ctx evalContext) bool {
 		return cmpInt(c.Op, ctx.self.Battery, c.Value)
 	case "dashReady":
 		return ctx.self.DashCd == 0
+	case "hitWall":
+		return ctx.self.Blocked
 	case "lineOfSight":
 		blocked := lineOfSightBlocked(ctx.self.X, ctx.self.Y, ctx.enemy.X, ctx.enemy.Y)
 		switch c.Op {

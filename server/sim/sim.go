@@ -80,6 +80,7 @@ func Simulate(a, b Build) Replay {
 
 			nx, ny := resolveMovement(moveAct[i], snap[i], snap[1-i], der[i], step)
 			nx, ny = clampArena(nx, ny)
+			st[i].Blocked = insideAnyObstacle(nx, ny) // 直進先が壁＝衝突（hitWall条件用）
 			st[i].X, st[i].Y = slideAroundObstacles(snap[i].X, snap[i].Y, nx, ny)
 
 			if dashing {

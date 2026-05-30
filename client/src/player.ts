@@ -2,11 +2,11 @@ import type { Replay, Frame, Build } from "./types";
 
 // 弾の見た目を武器ごとに変える（色・サイズ）。
 const PROJECTILE_STYLE: Record<string, { color: string; size: number }> = {
-  "Starter Cannon": { color: "#e8a13a", size: 5 },
-  "Rapid SMG": { color: "#f2d24b", size: 2 },
-  "Rail Sniper": { color: "#e8503a", size: 3 },
-  Laser: { color: "#19c2c2", size: 2 },
-  Scatter: { color: "#b070ff", size: 2 },
+  "Starter Cannon": { color: "#e8a13a", size: 7 },
+  "Rapid SMG": { color: "#f2d24b", size: 3 },
+  "Rail Sniper": { color: "#e8503a", size: 5 },
+  Laser: { color: "#19c2c2", size: 4 },
+  Scatter: { color: "#b070ff", size: 3 },
 };
 function weaponNameOf(build: Build): string {
   return build.parts.find((p) => p.category === "weapon")?.name ?? "";
@@ -20,7 +20,7 @@ const PAD = 24;
 const TICKS_PER_SEC = 30;
 const HEAT_MAX = 100;
 const FLOATER_LIFE = 0.6; // ダメージ数値の表示秒数
-const SPRITE_HALF_MILLI = 55000; // = sim MinSep/2。画像範囲＝当たり(分離)半径。スプライトはマップ縮尺に連動
+const SPRITE_HALF_MILLI = 70000; // = sim MinSep/2。画像範囲＝当たり(分離)半径。スプライトはマップ縮尺に連動
 const COLORS = ["#2d7dd2", "#e8503a"] as const; // 0=青(挑戦者) / 1=赤(相手)
 
 // ロボのスプライト（正面／後ろ向き）。読み込み前は円でフォールバック。

@@ -102,6 +102,7 @@ type RobotState struct {
 	Overheated   bool `json:"overheated"`
 	Defending    bool `json:"defending"`    // この tick 防御中（被ダメ半減・大幅減速）
 	GuardCharges int  `json:"guardCharges"` // 残りガード回数（0で半減しなくなる）
+	Blocked      bool `json:"blocked"`      // この tick 直進が壁で遮られた（壁衝突）
 }
 
 // Event は1ティック内の出来事。
@@ -158,7 +159,7 @@ const (
 	SpeedMin         = 3                   // 最低移動速度（表示units/tick）
 	WeightSpeedCoeff = 200                 // 0.2 × PositionScale（超過重量1あたりの速度低下・ミリ）
 	WeightBattDiv    = 10                  // 利用可能電力 = capacity − excessWeight/WeightBattDiv
-	MinSep           = 110 * PositionScale // 最小間隔（重なり防止）＝機体の画像範囲に相当
+	MinSep           = 140 * PositionScale // 最小間隔（重なり防止）＝機体の画像範囲に相当
 	HitRadius        = 18 * PositionScale  // 発射体の命中半径
 
 	HeatDecay            = 2   // 毎ティックの自然冷却

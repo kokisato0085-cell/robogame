@@ -9,7 +9,7 @@ var (
 	validMovementActions = map[string]bool{"approach": true, "retreat": true, "keepDistance": true, "dashApproach": true, "dashRetreat": true, "stop": true}
 	validWeaponActions   = map[string]bool{"fire": true, "hold": true}
 	validSpecialActions  = map[string]bool{"defend": true, "powerToggle": true}
-	validConditionTypes  = map[string]bool{"enemyDistance": true, "selfHp": true, "selfShield": true, "selfHeat": true, "selfBattery": true, "dashReady": true, "lineOfSight": true}
+	validConditionTypes  = map[string]bool{"enemyDistance": true, "selfHp": true, "selfShield": true, "selfHeat": true, "selfBattery": true, "dashReady": true, "lineOfSight": true, "hitWall": true}
 	validConditionOps    = map[string]bool{"inRange": true, "outRange": true, "lt": true, "gt": true, "nearOverheat": true, "exists": true, "none": true, "clear": true, "blocked": true}
 )
 
