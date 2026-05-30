@@ -9,8 +9,8 @@ var (
 	validMovementActions = map[string]bool{"approach": true, "retreat": true, "keepDistance": true, "dashApproach": true, "dashRetreat": true, "stop": true}
 	validWeaponActions   = map[string]bool{"fire": true, "hold": true}
 	validSpecialActions  = map[string]bool{"defend": true, "powerToggle": true}
-	validConditionTypes  = map[string]bool{"enemyDistance": true, "selfHp": true, "selfShield": true, "selfHeat": true, "selfBattery": true, "dashReady": true}
-	validConditionOps    = map[string]bool{"inRange": true, "outRange": true, "lt": true, "gt": true, "nearOverheat": true, "exists": true, "none": true}
+	validConditionTypes  = map[string]bool{"enemyDistance": true, "selfHp": true, "selfShield": true, "selfHeat": true, "selfBattery": true, "dashReady": true, "lineOfSight": true}
+	validConditionOps    = map[string]bool{"inRange": true, "outRange": true, "lt": true, "gt": true, "nearOverheat": true, "exists": true, "none": true, "clear": true, "blocked": true}
 )
 
 // ValidateBuild はビルドが登録可能か検証する（BasicDesign §4 / FunctionalDesign §0-7）。

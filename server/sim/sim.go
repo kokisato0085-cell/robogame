@@ -53,7 +53,7 @@ func Simulate(a, b Build) Replay {
 		dsq := dist2Of(snap[0], snap[1])
 		var moveAct, weapAct, defendAct [2]string
 		for i := 0; i < 2; i++ {
-			ctx := evalContext{self: snap[i], d: der[i], dist2: dsq}
+			ctx := evalContext{self: snap[i], enemy: snap[1-i], d: der[i], dist2: dsq}
 			moveAct[i] = chooseAction(builds[i].Ruleset.Movement, ctx, "approach")
 			weapAct[i] = chooseAction(builds[i].Ruleset.Weapon, ctx, "hold")
 			defendAct[i] = chooseAction(builds[i].Ruleset.Special, ctx, "none")
@@ -96,11 +96,11 @@ func Simulate(a, b Build) Replay {
 			if weapAct[i] != "fire" || w == nil || weaponCd[i] != 0 || snap[i].Overheated {
 				continue
 			}
-			p, ok := spawnProjectile(snap[i], snap[1-i], w, i)
-			if !ok {
+			ps := spawnProjectiles(snap[i], snap[1-i], w, i)
+			if len(ps) == 0 {
 				continue // 敵と重なっていて方向が定まらない場合は不発
 			}
-			projs = append(projs, p)
+			projs = append(projs, ps...)
 			weaponCd[i] = w.Cooldown
 			st[i].Heat += w.HeatPerShot
 			if st[i].Heat >= OverheatThreshold && !st[i].Overheated {
@@ -149,9 +149,29 @@ func Simulate(a, b Build) Replay {
 
 // ---- 発射体 ----
 
-// spawnProjectile は発射時の敵位置へ向かう発射体を作る。敵と重なっていれば ok=false。
-func spawnProjectile(self, enemy RobotState, w *WeaponSpec, source int) (liveProjectile, bool) {
+// spawnProjectiles は1回の発射で pellets 発を生成する（拡散は側方オフセットで近似・整数）。
+func spawnProjectiles(self, enemy RobotState, w *WeaponSpec, source int) []liveProjectile {
+	pellets := w.Pellets
+	if pellets < 1 {
+		pellets = 1
+	}
 	dx, dy := enemy.X-self.X, enemy.Y-self.Y
+	out := make([]liveProjectile, 0, pellets)
+	for k := 0; k < pellets; k++ {
+		oi := 2*k - (pellets - 1) // 対称な整数オフセット（pellets=1→0, 3→-2,0,2）
+		// 敵方向の直交(-dy,dx)に沿って狙点をずらす。spreadDeg/57≈tan、oi/2 倍を 114 で割って相殺。
+		ax := enemy.X + (-dy)*oi*w.SpreadDeg/114
+		ay := enemy.Y + dx*oi*w.SpreadDeg/114
+		if p, ok := spawnProjectileToward(self, ax, ay, w, source); ok {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// spawnProjectileToward は (tx,ty) へ向かう発射体を作る。自機と同座標なら ok=false。
+func spawnProjectileToward(self RobotState, tx, ty int, w *WeaponSpec, source int) (liveProjectile, bool) {
+	dx, dy := tx-self.X, ty-self.Y
 	dist := int(isqrt(int64(dx)*int64(dx) + int64(dy)*int64(dy)))
 	if dist == 0 {
 		return liveProjectile{}, false
@@ -231,6 +251,60 @@ func insideAnyObstacle(x, y int) bool {
 		}
 	}
 	return false
+}
+
+// lineOfSightBlocked は (ax,ay)-(bx,by) の線分がいずれかの遮蔽物と交差するか（射線が遮られているか）。
+func lineOfSightBlocked(ax, ay, bx, by int) bool {
+	for _, o := range obstacles {
+		if segIntersectsRect(ax, ay, bx, by, o) {
+			return true
+		}
+	}
+	return false
+}
+
+func segIntersectsRect(ax, ay, bx, by int, r Rect) bool {
+	x0, y0, x1, y1 := r.X, r.Y, r.X+r.W, r.Y+r.H
+	if (ax >= x0 && ax <= x1 && ay >= y0 && ay <= y1) || (bx >= x0 && bx <= x1 && by >= y0 && by <= y1) {
+		return true // 端点が矩形内
+	}
+	return segSeg(ax, ay, bx, by, x0, y0, x1, y0) ||
+		segSeg(ax, ay, bx, by, x1, y0, x1, y1) ||
+		segSeg(ax, ay, bx, by, x1, y1, x0, y1) ||
+		segSeg(ax, ay, bx, by, x0, y1, x0, y0)
+}
+
+// segSeg は線分 p1-p2 と p3-p4 が交差するか（整数・向き判定）。
+func segSeg(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y int) bool {
+	d1 := orient(p3x, p3y, p4x, p4y, p1x, p1y)
+	d2 := orient(p3x, p3y, p4x, p4y, p2x, p2y)
+	d3 := orient(p1x, p1y, p2x, p2y, p3x, p3y)
+	d4 := orient(p1x, p1y, p2x, p2y, p4x, p4y)
+	if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)) {
+		return true
+	}
+	if d1 == 0 && onSeg(p3x, p3y, p4x, p4y, p1x, p1y) {
+		return true
+	}
+	if d2 == 0 && onSeg(p3x, p3y, p4x, p4y, p2x, p2y) {
+		return true
+	}
+	if d3 == 0 && onSeg(p1x, p1y, p2x, p2y, p3x, p3y) {
+		return true
+	}
+	if d4 == 0 && onSeg(p1x, p1y, p2x, p2y, p4x, p4y) {
+		return true
+	}
+	return false
+}
+
+func orient(ax, ay, bx, by, cx, cy int) int64 {
+	return int64(bx-ax)*int64(cy-ay) - int64(by-ay)*int64(cx-ax)
+}
+
+// onSeg は a-b 上に（共線前提で）点 c があるか。
+func onSeg(ax, ay, bx, by, cx, cy int) bool {
+	return cx >= min(ax, bx) && cx <= max(ax, bx) && cy >= min(ay, by) && cy <= max(ay, by)
 }
 
 // slideAroundObstacles は壁ずり（FunctionalDesign S2-3）。

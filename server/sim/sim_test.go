@@ -61,8 +61,8 @@ func TestInitialFrameAndArena(t *testing.T) {
 	if f0.Robots[0].Hp != 100 || f0.Robots[1].Hp != 100 {
 		t.Errorf("初期HPが不正")
 	}
-	if len(r.Obstacles) != 4 {
-		t.Errorf("遮蔽物 = %d 個, want 4", len(r.Obstacles))
+	if len(r.Obstacles) != 6 {
+		t.Errorf("遮蔽物 = %d 個, want 6", len(r.Obstacles))
 	}
 	if r.ArenaW != 1600*PositionScale {
 		t.Errorf("ArenaW = %d", r.ArenaW)
@@ -253,6 +253,41 @@ func TestGuardChargesDeplete(t *testing.T) {
 	}
 	if s.GuardCharges != 0 {
 		t.Errorf("ガード残量=%d, want 0", s.GuardCharges)
+	}
+}
+
+func scatterBuild() Build {
+	return Build{
+		Chassis: balancedChassis(),
+		Parts: []Part{{
+			Name: "Scatter", Category: "weapon", Weight: 10, PowerCost: 8, SlotCost: 2,
+			Weapon: &WeaponSpec{Power: 6, Range: 300, Cooldown: 14, HeatPerShot: 5, ProjectileSpeed: 40, Pellets: 3, SpreadDeg: 12, Pattern: "spread"},
+		}},
+		Ruleset: Ruleset{Weapon: []Rule{{Conditions: []Condition{{Type: "enemyDistance", Op: "inRange"}}, Action: "fire"}}},
+	}
+}
+
+func TestScatterFiresMultiplePellets(t *testing.T) {
+	r := Simulate(scatterBuild(), unarmed())
+	maxP := 0
+	for _, f := range r.Frames {
+		if len(f.Projectiles) > maxP {
+			maxP = len(f.Projectiles)
+		}
+	}
+	if maxP < 3 {
+		t.Errorf("拡散で複数弾が出ていない: 最大同時発射体=%d", maxP)
+	}
+}
+
+func TestLineOfSightBlockedByObstacle(t *testing.T) {
+	o := obstacles[0]
+	midY := o.Y + o.H/2
+	if !lineOfSightBlocked(o.X-50000, midY, o.X+o.W+50000, midY) {
+		t.Error("障害物を貫く線分が blocked にならない")
+	}
+	if lineOfSightBlocked(0, 0, 1000, 0) {
+		t.Error("障害物の無い線分が blocked 扱い")
 	}
 }
 

@@ -3,6 +3,7 @@ package sim
 // evalContext は1体のルール評価に必要な、ティック開始時点のスナップショット。
 type evalContext struct {
 	self  RobotState
+	enemy RobotState
 	d     derived
 	dist2 int64 // 敵との二乗距離（ミリ）
 }
@@ -57,6 +58,14 @@ func condMet(c Condition, ctx evalContext) bool {
 		return cmpInt(c.Op, ctx.self.Battery, c.Value)
 	case "dashReady":
 		return ctx.self.DashCd == 0
+	case "lineOfSight":
+		blocked := lineOfSightBlocked(ctx.self.X, ctx.self.Y, ctx.enemy.X, ctx.enemy.Y)
+		switch c.Op {
+		case "blocked":
+			return blocked
+		case "clear":
+			return !blocked
+		}
 	}
 	return false
 }

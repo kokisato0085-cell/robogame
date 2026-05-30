@@ -26,7 +26,9 @@ type WeaponSpec struct {
 	Cooldown        int    `json:"cooldown"`        // 連射間隔（ティック）
 	HeatPerShot     int    `json:"heatPerShot"`     // 1発の発熱量
 	ProjectileSpeed int    `json:"projectileSpeed"` // 発射体の速度（表示units/tick）
-	Pattern         string `json:"pattern"`         // 攻撃パターン（段階1は "single"）
+	Pellets         int    `json:"pellets"`         // 1発で出る発射体数（既定1）
+	SpreadDeg       int    `json:"spreadDeg"`       // 拡散角（pellets>1 のとき扇状に）
+	Pattern         string `json:"pattern"`         // 攻撃パターン（"single"/"spread"）
 }
 
 // ArmorSpec は装甲カテゴリ固有（段階2）。
@@ -185,4 +187,7 @@ var obstacles = []Rect{
 	{X: 820 * PositionScale, Y: 1060 * PositionScale, W: 80 * PositionScale, H: 140 * PositionScale}, // 下中央寄り（上の点対称）
 	{X: 380 * PositionScale, Y: 820 * PositionScale, W: 80 * PositionScale, H: 120 * PositionScale},  // A側カバー
 	{X: 1140 * PositionScale, Y: 660 * PositionScale, W: 80 * PositionScale, H: 120 * PositionScale}, // B側カバー（点対称）
+	// 前方カバー（長射程武器対策・各スポーン前の射線を遮る。小さく・中央レーンは開けたまま）。
+	{X: 345 * PositionScale, Y: 665 * PositionScale, W: 60 * PositionScale, H: 60 * PositionScale},  // A前カバー
+	{X: 1195 * PositionScale, Y: 875 * PositionScale, W: 60 * PositionScale, H: 60 * PositionScale}, // B前カバー（点対称）
 }
